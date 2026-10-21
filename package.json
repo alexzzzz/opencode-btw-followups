@@ -1,0 +1,74 @@
+{
+  "name": "@alexzzzz/opencode-btw-followups",
+  "version": "0.1.4",
+  "description": "OpenCode plugin that replaces the built-in /btw with a side question dialog that keeps a thread of follow-up questions",
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "btw",
+    "followups",
+    "tui",
+    "dialog"
+  ],
+  "license": "WTFPL-2.0",
+  "author": {
+    "name": "alexzzzz",
+    "url": "https://github.com/alexzzzz"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alexzzzz/opencode-btw-followups.git"
+  },
+  "homepage": "https://github.com/alexzzzz/opencode-btw-followups#readme",
+  "bugs": {
+    "url": "https://github.com/alexzzzz/opencode-btw-followups/issues"
+  },
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js",
+    "./tui": "./dist/tui.js"
+  },
+  "main": "./dist/index.js",
+  "files": [
+    "dist",
+    "src",
+    "docs/btw-window.png",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "check": "bun run typecheck && bun test && bun run build",
+    "prepublishOnly": "bun run check"
+  },
+  "dependencies": {
+    "@opencode/plugin": "^2.0.19"
+  },
+  "peerDependencies": {
+    "@opentui/core": ">=0.5.12",
+    "@opentui/solid": ">=0.5.12",
+    "solid-js": ">=1.9.0"
+  },
+  "peerDependenciesMeta": {
+    "@opentui/core": {
+      "optional": true
+    },
+    "@opentui/solid": {
+      "optional": true
+    },
+    "solid-js": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "esbuild": "0.25.0",
+    "esbuild-plugin-solid": "0.6.0",
+    "typescript": "^5.7.0"
+  }
+}
