@@ -8,6 +8,7 @@ import {
   movedSince,
   movedUnder,
   stateOf,
+  waiting,
   type Sides,
 } from "../src/state.ts"
 
@@ -342,5 +343,45 @@ describe("what the reader left", () => {
     const after = answered(sides, a, turn("first"), 1)
 
     expect(stateOf(after, a).draft).toBe("not asked yet")
+  })
+})
+
+/**
+ * The badge in the prompt row. It says a question is being answered in that session and
+ * that the window for it is not up, so it is the one thing the reader can reach while
+ * the answer is coming, and it is drawn in the row of the session it belongs to.
+ */
+describe("waiting", () => {
+  test("a question in flight with no window up is a badge", () => {
+    const sides = change(new Map(), a, { active: "one" })
+    expect(waiting(sides, a, undefined)).toBe(true)
+  })
+
+  test("no question in flight is no badge", () => {
+    expect(waiting(new Map(), a, undefined)).toBe(false)
+  })
+
+  test("a queued question alone is no badge", () => {
+    const sides = change(new Map(), a, { pending: ["one"] })
+    expect(waiting(sides, a, undefined)).toBe(false)
+  })
+
+  test("the window already up for that session is no badge", () => {
+    const sides = change(new Map(), a, { active: "one" })
+    expect(waiting(sides, a, a)).toBe(false)
+  })
+
+  test("a window up for another session leaves the badge where it is", () => {
+    const sides = change(new Map(), a, { active: "one" })
+    expect(waiting(sides, a, b)).toBe(true)
+  })
+
+  test("a row with no session of its own carries no badge", () => {
+    expect(waiting(new Map(), undefined, undefined)).toBe(false)
+  })
+
+  test("another session's question does not put a badge in this one's row", () => {
+    const sides = change(new Map(), b, { active: "one" })
+    expect(waiting(sides, a, undefined)).toBe(false)
   })
 })

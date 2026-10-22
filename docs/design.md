@@ -89,6 +89,34 @@ answer joins the emptied thread, the queue keeps what has not gone out, and the 
 the reader asked to drop the history, not the work in progress. A clear also resets the
 reveal timer and the "new answers below" notice, since both count turns that are gone.
 
+## The badge in the prompt row
+
+The badge is the `btw` the plugin draws in the host's prompt row, and it is the reader's
+only way back to a question that is being answered while the window is down.
+
+The evidence was taken against OpenCode 2.1.2 and its `@opencode/plugin` 2.1.2, whose slot
+map publishes `prompt.footer.status` with the session id, the mode and the details flag,
+and against `@opentui/core` 0.5.14 and 0.6.6.
+
+- The slot is drawn in the prompt's footer row, beside the label of the working directory
+  (`packages/tui/src/component/prompt/index.tsx`). The host makes that label clickable
+  with `onMouseOver`, `onMouseOut` and `onMouseUp` on the text, and lightens it while the
+  pointer is on it, so the badge follows the same convention: a mouse up opens, and the
+  text brightens on hover.
+- OpenTUI has no `onMouseClick`. The handlers are `onMouse`, `onMouseDown`, `onMouseUp`,
+  `onMouseMove`, `onMouseOver`, `onMouseOut`, `onMouseDrag`, `onMouseDragEnd`,
+  `onMouseDrop` and `onMouseScroll`, and an event bubbles up the tree of renderables until
+  it is stopped. The handlers therefore sit on the box that holds the two texts, and a
+  click on either of them reaches it.
+- A click that ends a text selection is not a click on the badge. The host makes that
+  guard for its own labels, and so does this one.
+- The host's dialog covers the screen with a backdrop that takes the mouse up
+  (`packages/tui/src/ui/dialog.tsx`), so the badge cannot be clicked while any dialog is
+  up. That is the case the badge is drawn for anyway: the window for that session is
+  down, or it is up for another session.
+- The host can have the mouse turned off, with `mouse: false` in its config. The badge is
+  then drawn and cannot be clicked, and the reader has the command.
+
 ## The markdown of an answer
 
 The answer is drawn by the host's own markdown renderer, which takes the content and the
@@ -187,9 +215,10 @@ The packaging is verified by packing the tarball, installing it into an empty pr
 importing each entrypoint.
 
 The TUI half is verified by hand: rendering, scrolling, the composer, the spinner, the
-command, switching sessions with a window up, the line between two exchanges, the markdown
-of an answer that has finished being written, the markdown of that same answer after the
-window was closed and opened again, and the two presses that clear a thread.
+command, the click on the badge that opens the window, switching sessions with a window
+up, the line between two exchanges, the markdown of an answer that has finished being
+written, the markdown of that same answer after the window was closed and opened again,
+and the two presses that clear a thread.
 
 ## The picture in the README
 

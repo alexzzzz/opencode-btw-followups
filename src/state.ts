@@ -155,6 +155,24 @@ export const movedUnder = (turns: readonly SideTurn[], index: number, ahead: boo
 }
 
 /**
+ * Whether the prompt row of a session carries the badge.
+ *
+ * The badge says a question is being answered in that session and that the window for
+ * it is not up, so it is the one thing the reader can reach while the answer is coming.
+ * It belongs to the session the question was asked in, and it is drawn in that
+ * session's row: a badge for another session's question would sit under a conversation
+ * it is not about.
+ */
+export const waiting = (
+  sides: Sides,
+  sessionID: string | undefined,
+  windowSession: string | undefined,
+): boolean =>
+  sessionID !== undefined &&
+  stateOf(sides, sessionID).active !== undefined &&
+  windowSession !== sessionID
+
+/**
  * The state without one session's thread, for a session that no longer exists.
  *
  * The map it is given is returned unchanged when the session was not in it, so an event

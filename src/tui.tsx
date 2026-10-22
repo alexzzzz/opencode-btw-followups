@@ -27,6 +27,7 @@ import {
   movedSince,
   movedUnder,
   stateOf,
+  waiting,
   type Reading,
   type SideState,
   type Sides,
@@ -224,19 +225,36 @@ function useFrames(active?: () => boolean) {
 }
 
 /**
- * The prompt row's sign that a question is being answered in this session.
+ * The prompt row's badge: the sign that a question is being answered in this session,
+ * and the handle on the window that answers it.
  *
  * The accent is handed over rather than read from the plugin context, which throws where
  * it is not an ancestor. A row: a box lays its children in a column unless told
  * otherwise, and no gap makes the row the four cells `/btw` measures.
+ *
+ * The handlers sit on the box rather than on the two texts, because a mouse event on a
+ * text bubbles up to the box that holds it, and the badge is one thing to click. The
+ * hover lightens it the way the host lightens its own clickable labels.
  */
-function Waiting(props: { readonly accent: ColorInput }) {
+function Waiting(props: {
+  readonly accent: ColorInput
+  readonly base: ColorInput
+  readonly open: () => void
+}) {
   const frame = useFrames()
+  const [hovered, setHovered] = createSignal(false)
+  const colour = () => (hovered() ? props.base : props.accent)
 
   return (
-    <box flexDirection="row" flexShrink={0}>
-      <text fg={props.accent}>{FRAMES[frame()]}</text>
-      <text fg={props.accent}>btw</text>
+    <box
+      flexDirection="row"
+      flexShrink={0}
+      onMouseOver={() => setHovered(true)}
+      onMouseOut={() => setHovered(false)}
+      onMouseUp={props.open}
+    >
+      <text fg={colour()}>{FRAMES[frame()]}</text>
+      <text fg={colour()}>btw</text>
     </box>
   )
 }
@@ -1190,6 +1208,24 @@ export default {
     }
 
     /**
+     * The badge, clicked: the window for the session whose prompt row carries it,
+     * opened the way the command opens it and with nothing asked.
+     *
+     * The session comes from the row and not from the route, because the badge is drawn
+     * in the row of the session the question was asked in, and that is the session whose
+     * window the reader is asking for.
+     *
+     * A click that ends a text selection is not a click on the badge. The host makes the
+     * same guard for the labels in its own prompt row.
+     */
+    const openFor = (sessionID: string | undefined) => {
+      if (!sessionID) return
+      if (context.renderer.getSelection()?.getSelectedText()) return
+      edit(sessionID, { failure: undefined })
+      raise(sessionID)
+    }
+
+    /**
      * A thread does not outlive the session it belongs to: a deleted session cannot be
      * opened again, so its window comes down, its request is called off and its thread
      * is dropped.
@@ -1244,15 +1280,19 @@ export default {
      * The prompt row's wait, for the one the window cannot show: a question being
      * answered in this session while its window is up for another, or before any window
      * exists. Asked of the session the slot hands over, never another one.
+     *
+     * The badge is also the way back to that window, so a click on it opens the window
+     * for the session the row belongs to.
      */
-    const waiting = (sessionID?: string) =>
-      sessionID !== undefined && view(sessionID).active !== undefined && windowSession() !== sessionID
-
     const removeFooterSlot = context.ui.slot({
       append: "prompt.footer.status",
       render: (input) => (
-        <Show when={waiting(input.sessionID)}>
-          <Waiting accent={context.theme.hue.interactive[200]} />
+        <Show when={waiting(sides(), input.sessionID, windowSession())}>
+          <Waiting
+            accent={context.theme.hue.interactive[200]}
+            base={context.theme.text.base}
+            open={() => openFor(input.sessionID)}
+          />
         </Show>
       ),
     })

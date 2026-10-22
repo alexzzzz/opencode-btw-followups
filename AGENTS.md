@@ -14,7 +14,8 @@ needs one pass by hand in a terminal.
 
 - `src/index.ts` is the server entrypoint, and it registers nothing because the thread is a
   terminal concern.
-- `src/tui.tsx` is the terminal entrypoint: the command, the dialog and the queue behind it.
+- `src/tui.tsx` is the terminal entrypoint: the command, the dialog, the queue behind it
+  and the badge in the prompt row.
   `test/tui.test.ts` pins the order of the attributes on its markdown element, which is a
   rule no other test can see.
 - `src/prompt.ts`, `src/layout.ts` and `src/state.ts` are pure, and `test/` covers them.
@@ -64,6 +65,10 @@ measurement behind the reason is in `docs/design.md`.
 - Closing the window ends the window and the queue and lets a request in flight finish. A
   deleted session calls that request off.
 - Raise the window for an answer only when the reader is in the session it belongs to.
+- Make the badge a handle on the window: a click on the `btw` badge in the prompt row
+  opens the window for the session that row belongs to, because the badge is the only
+  sign of a question the reader cannot see while it is being answered. Take the session
+  from the row, and open the window the way the command opens it, with nothing asked.
 - Close the plugin's own dialog on the way out, and only while that window is up, because the
   host's `dialog.clear()` closes whichever dialog is active. A terminal too short to open a
   window costs the reader the message alone.
@@ -72,8 +77,7 @@ measurement behind the reason is in `docs/design.md`.
 - Pass cleanup as the dialog's `onClose` and keep it idempotent, because the host closes its
   own dialog on Escape and Ctrl+C and calls `onClose` for every entry it clears.
 - Take the session from a slot input or a signal rather than from `router.current()`, which is
-  a plain read. The prompt row's spinner is a component mounted for as long as there is a wait
-  to show.
+  a plain read. The badge is a component mounted for as long as there is a wait to show.
 
 ### The panel
 
@@ -92,4 +96,5 @@ measurement behind the reason is in `docs/design.md`.
   renderer builds its blocks when the content lands and a block built without a style keeps none:
   the highlighter falls back to the raw source and `**` lands on screen.
 - Mark the prompt row with a braille frame in `hue.interactive[200]` and then `btw`, in one
-  `box flexShrink={0}` with no gap, so the row is the four cells `/btw` measures.
+  `box flexShrink={0}` with no gap, so the row is the four cells `/btw` measures. Call that
+  row the badge, and lighten it on hover the way the host lightens its own clickable labels.
