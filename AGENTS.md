@@ -80,9 +80,10 @@ copies drift.
 - Raise the window for an answer only when the reader is in the session it belongs to.
 - Write out each new answer once, and only once. An answer that arrives while the window is
   closed plays when the window opens, and an answer already played comes back whole, because a
-  second play spends the same second and a half on text the reader has seen. `revealed` on the
-  turn records the play, `firstShown` in `src/reveal.ts` decides where the text starts, and the
-  window marks the turn as it starts the timer.
+  second play spends the same second and a half on text the reader has seen. `firstShown` in
+  `src/reveal.ts` decides where the text starts, and the mark of a played answer lives in a
+  `WeakSet` beside the thread in `src/tui.tsx`, never in the side state: a state write during
+  the reveal rebuilds the dialog, and the play then never shows at all.
 - Make the badge a handle on the window: a click on the `btw` badge in the prompt row
   opens the window for the session that row belongs to, because the badge is the only
   sign of a question the reader cannot see while it is being answered. Take the session

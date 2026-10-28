@@ -27,7 +27,7 @@ import { HEADER_GAP, HEADER_PAD, HEADER_TITLE, CLOSE_LABEL, headerRow, type Head
 import { NOT_BROWSING, recalled, type Browse } from "./history.ts"
 import { QUICK_PROMPTS, nextChoice, quickCardDress, quickCardRows, quickCardWidth } from "./quick.ts"
 import { firstShown, nextChunk, REVEAL_MS, shownText } from "./reveal.ts"
-import { gapBelow, type Failure, type Reading, type SideState } from "./state.ts"
+import { gapBelow, type Failure, type Reading, type SideState, type SideTurn } from "./state.ts"
 
 type Theme = Plugin.Context["theme"]
 
@@ -69,12 +69,16 @@ function useSpinnerFrame(running: () => boolean = () => true) {
   return frame
 }
 
-function useAnswerReveal(state: () => SideState, markRevealed: () => void) {
+function useAnswerReveal(
+  state: () => SideState,
+  played: (item: SideTurn) => boolean,
+  markPlayed: (item: SideTurn) => void,
+) {
   const start = () => {
     const last = state().turns.at(-1)
     return last === undefined
       ? Number.POSITIVE_INFINITY
-      : firstShown(last.revealed, last.turn.answer.length)
+      : firstShown(played(last), last.turn.answer.length)
   }
 
   const [shown, setShown] = createSignal(start())
@@ -93,10 +97,10 @@ function useAnswerReveal(state: () => SideState, markRevealed: () => void) {
         const last = state().turns.at(-1)
         if (last === undefined) return
         const answer = last.turn.answer
-        const first = firstShown(last.revealed, answer.length)
+        const first = firstShown(played(last), answer.length)
         setShown(first)
         if (first >= answer.length) return
-        markRevealed()
+        markPlayed(last)
         timer = setInterval(() => {
           const next = nextChunk(shown(), answer.length)
           setShown(next)
@@ -469,7 +473,8 @@ export function ThreadDialog(props: {
   readonly limit: () => number
   readonly rows: () => number
   readonly sessionMoved: () => boolean
-  readonly markRevealed: () => void
+  readonly played: (item: SideTurn) => boolean
+  readonly markPlayed: (item: SideTurn) => void
   readonly remember: (draft: string, place: Reading | undefined) => void
   readonly ask: (question: string) => void
   readonly clear: () => void
@@ -486,7 +491,7 @@ export function ThreadDialog(props: {
   let panel: BoxRenderable | undefined
   let place = props.state().place
 
-  const reveal = useAnswerReveal(props.state, props.markRevealed)
+  const reveal = useAnswerReveal(props.state, props.played, props.markPlayed)
   const frame = useSpinnerFrame(() => Boolean(props.state().active))
   const [width, setWidth] = createSignal(0)
   const [height, setHeight] = createSignal(0)

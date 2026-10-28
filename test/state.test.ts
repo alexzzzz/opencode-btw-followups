@@ -6,7 +6,6 @@ import {
   cleared,
   forget,
   gapBelow,
-  markRevealed,
   movedSinceLast,
   showsBadge,
   stateOf,
@@ -19,7 +18,7 @@ const b = "ses_b"
 const turn = (question: string) => ({ question, answer: `${question} answered` })
 
 const lined = (spokenAts: readonly number[]) =>
-  spokenAts.map((spokenAt, i) => ({ turn: turn(`t${i}`), spokenAt, revealed: false }))
+  spokenAts.map((spokenAt, i) => ({ turn: turn(`t${i}`), spokenAt }))
 
 describe("stateOf", () => {
   test("a session nothing has been asked in reads as empty rather than as missing", () => {
@@ -36,8 +35,8 @@ describe("stateOf", () => {
 
   test("each session reads back what was written to it", () => {
     let sides: Sides = new Map()
-    sides = change(sides, a, { turns: [{ turn: turn("first"), spokenAt: 1, revealed: false }] })
-    expect(stateOf(sides, a).turns).toEqual([{ turn: turn("first"), spokenAt: 1, revealed: false }])
+    sides = change(sides, a, { turns: [{ turn: turn("first"), spokenAt: 1 }] })
+    expect(stateOf(sides, a).turns).toEqual([{ turn: turn("first"), spokenAt: 1 }])
     expect(stateOf(sides, b).turns).toEqual([])
   })
 })
@@ -45,8 +44,8 @@ describe("stateOf", () => {
 describe("change", () => {
   test("one session's thread does not reach another's", () => {
     let sides: Sides = new Map()
-    sides = change(sides, a, { turns: [{ turn: turn("about a"), spokenAt: 1, revealed: false }] })
-    sides = change(sides, b, { turns: [{ turn: turn("about b"), spokenAt: 2, revealed: false }] })
+    sides = change(sides, a, { turns: [{ turn: turn("about a"), spokenAt: 1 }] })
+    sides = change(sides, b, { turns: [{ turn: turn("about b"), spokenAt: 2 }] })
 
     expect(stateOf(sides, a).turns.map((item) => item.turn.question)).toEqual(["about a"])
     expect(stateOf(sides, b).turns.map((item) => item.turn.question)).toEqual(["about b"])
@@ -69,7 +68,7 @@ describe("change", () => {
 
   test("the state it is given is left alone", () => {
     const before: Sides = new Map()
-    const after = change(before, a, { turns: [{ turn: turn("first"), spokenAt: 1, revealed: false }] })
+    const after = change(before, a, { turns: [{ turn: turn("first"), spokenAt: 1 }] })
 
     expect(before.size).toBe(0)
     expect(after).not.toBe(before)
@@ -88,7 +87,7 @@ describe("change", () => {
 
   test("the fields it is not given are kept", () => {
     let sides: Sides = new Map()
-    sides = change(sides, a, { turns: [{ turn: turn("first"), spokenAt: 1, revealed: false }], draft: "not asked yet" })
+    sides = change(sides, a, { turns: [{ turn: turn("first"), spokenAt: 1 }], draft: "not asked yet" })
     sides = change(sides, a, { pending: ["second"] })
 
     expect(stateOf(sides, a).turns).toHaveLength(1)
@@ -106,8 +105,8 @@ describe("change", () => {
 describe("forget", () => {
   test("the session is gone and the others are not", () => {
     let sides: Sides = new Map()
-    sides = change(sides, a, { turns: [{ turn: turn("about a"), spokenAt: 1, revealed: false }] })
-    sides = change(sides, b, { turns: [{ turn: turn("about b"), spokenAt: 2, revealed: false }] })
+    sides = change(sides, a, { turns: [{ turn: turn("about a"), spokenAt: 1 }] })
+    sides = change(sides, b, { turns: [{ turn: turn("about b"), spokenAt: 2 }] })
     const after = forget(sides, a)
 
     expect(after.has(a)).toBe(false)
@@ -124,12 +123,7 @@ describe("forget", () => {
 describe("answered", () => {
   test("the turn and the count it was answered against are stored together", () => {
     const sides = answered(new Map(), a, turn("first"), 12)
-    expect(stateOf(sides, a).turns).toEqual([{ turn: turn("first"), spokenAt: 12, revealed: false }])
-  })
-
-  test("an answer is owed a reveal until the window plays it", () => {
-    const sides = answered(new Map(), a, turn("first"), 12)
-    expect(stateOf(sides, a).turns[0]?.revealed).toBe(false)
+    expect(stateOf(sides, a).turns).toEqual([{ turn: turn("first"), spokenAt: 12 }])
   })
 
   test("a second turn adds a second count rather than replacing the first", () => {
@@ -147,32 +141,6 @@ describe("answered", () => {
     const after = answered(sides, a, turn("first"), 3)
 
     expect(stateOf(after, a)).toMatchObject({ pending: ["queued"], active: "queued" })
-  })
-})
-
-describe("markRevealed", () => {
-  test("the newest answer is the one the window plays", () => {
-    let sides: Sides = new Map()
-    sides = answered(sides, a, turn("first"), 1)
-    sides = answered(sides, a, turn("second"), 2)
-
-    expect(stateOf(markRevealed(sides, a), a).turns.map((item) => item.revealed)).toEqual([
-      false,
-      true,
-    ])
-  })
-
-  test("marking the same answer twice is not a change", () => {
-    let sides: Sides = new Map()
-    sides = answered(sides, a, turn("first"), 1)
-    sides = markRevealed(sides, a)
-
-    expect(markRevealed(sides, a)).toBe(sides)
-  })
-
-  test("a session with no answer has nothing to mark", () => {
-    const sides: Sides = new Map()
-    expect(markRevealed(sides, a)).toBe(sides)
   })
 })
 
@@ -222,7 +190,7 @@ describe("cleared", () => {
     sides = cleared(sides, a)
     sides = answered(sides, a, turn("second"), 4)
 
-    expect(stateOf(sides, a).turns).toEqual([{ turn: turn("second"), spokenAt: 4, revealed: false }])
+    expect(stateOf(sides, a).turns).toEqual([{ turn: turn("second"), spokenAt: 4 }])
     expect(movedSinceLast(stateOf(sides, a).turns, 4)).toBe(false)
   })
 

@@ -5,12 +5,12 @@ import {
   change,
   cleared,
   forget,
-  markRevealed,
   movedSinceLast,
   showsBadge,
   stateOf,
   type SideState,
   type Sides,
+  type SideTurn,
 } from "./state.ts"
 import { remembered } from "./history.ts"
 import { opensFromSession } from "./keys.ts"
@@ -55,6 +55,7 @@ export default {
 
     const draining = new Set<string>()
     const inFlight = new Map<string, AbortController>()
+    const played = new WeakSet<SideTurn>()
 
     const spokenCount = (sessionID: string) =>
       context.data.session.message
@@ -153,7 +154,8 @@ export default {
             limit={() => transcriptRows(rows())}
             rows={() => rows()}
             sessionMoved={() => movedSinceLast(view(sessionID).turns, spokenCount(sessionID))}
-            markRevealed={() => setSides((before) => markRevealed(before, sessionID))}
+            played={(item) => played.has(item)}
+            markPlayed={(item) => played.add(item)}
             remember={(draft, place) => edit(sessionID, { draft, place })}
             ask={(question) => ask(sessionID, question)}
             clear={() => setSides((before) => cleared(before, sessionID))}

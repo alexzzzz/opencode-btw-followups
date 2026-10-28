@@ -330,10 +330,14 @@ over a thread draws every turn whole, so a half-revealed answer never leaves mar
 characters on screen. The pacing is in `src/reveal.ts` and `test/reveal.test.ts` holds it.
 
 The reveal is paid once per answer. The newest turn is written out whether the window was open
-when it landed or opened afterwards, and the turn records that its play has begun, so a window
-closed mid-way and opened again draws the rest at once instead of starting the second and a half
-over. A turn that was played before is never played again; the mark is `revealed` on the turn,
-and `markRevealed` in `src/state.ts` sets it.
+when it landed or opened afterwards, and the plugin remembers which answers it has played, so a
+window closed mid-way and opened again draws the rest at once instead of starting the second and
+a half over. A turn that was played before is never played again.
+
+That memory is a `WeakSet` of turns beside the thread in `src/tui.tsx`, and not a field of the
+side state, because the dialog is rebuilt from that state: a write into it while the reveal runs
+re-creates the window, which reads the answer as already played and draws it whole, and the play
+never appears at all. A set that no signal reads costs the window a rebuild with no effect.
 
 The reveal is also what keeps the markdown of a finished answer right: a later write rebuilds
 the list block, and the block picks the syntax style up on the way, which is the case described
