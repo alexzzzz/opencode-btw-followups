@@ -659,6 +659,21 @@ export function ThreadDialog(props: {
         },
       },
       {
+        id: "session.aside.step_down",
+        bind: "ctrl+down",
+        title: "Close the prompt list or the window",
+        group: "Dialog",
+        run: (_input: unknown, event?: KeyEvent) => {
+          event?.preventDefault()
+          if (!listed()) {
+            props.close()
+            return
+          }
+          setListed(false)
+          field?.focus()
+        },
+      },
+      {
         id: "session.aside.clear",
         bind: "delete",
         title: "Clear the side thread",

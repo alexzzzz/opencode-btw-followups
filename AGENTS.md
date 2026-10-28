@@ -173,5 +173,8 @@ copies drift.
 - Open the quick prompts on `Ctrl+Up` inside the window, the way the `btw` marker in the header
   toggles them, because the key reaches the dialog before anything behind it and the composer
   keeps the arrows, `Home` and `End` for the cursor.
+- Mirror it on `Ctrl+Down`: the list goes down on that key, and the window goes down once the
+  list is already down, because `Ctrl+Up` is the way in at both levels and the way out should
+  read the same. The host binds no `Ctrl+Down`, so the key is free.
 - Ask a pick in the side thread, which is what both a click and `Enter` do, because the prompts
   are the window's own and a side question leaves the conversation alone.

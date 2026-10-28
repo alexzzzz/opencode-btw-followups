@@ -267,7 +267,9 @@ and a live press on the prompt and in the window.
   and the details flag, and the slot map publishes `session.composer.top` with the session id
   alone, so a shortcut cannot test the field for emptiness. It is a modifier combination instead.
 - `Ctrl+Up` is free in the host's input table (`packages/tui/src/config/keybind.ts`) and reached
-  the plugin on a live press, while the arrows keep moving the cursor.
+  the plugin on a live press, while the arrows keep moving the cursor. `Ctrl+Down` appears in no
+  binding of the published host at all, so the way out mirrors the way in: the list goes down on
+  it first, and the window once the list is down.
 - A slot above the composer renders in the flow and has no overlay to move into: the list took
   its rows and the prompt moved down under it, which is not what a reader wants. The slot map
   offers no overlay either, since it lists `app`, `home.footer`, `prompt.footer`,
