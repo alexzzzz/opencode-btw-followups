@@ -23,6 +23,7 @@ import {
 } from "./footer.ts"
 import { COMPOSER_ROWS, listTranscriptRows, RAIL } from "./layout.ts"
 import { HEADER_GAP, HEADER_PAD, HEADER_TITLE, CLOSE_LABEL, headerRow, type HeaderRow } from "./header.ts"
+import { NOT_BROWSING, recalled, type Browse } from "./history.ts"
 import { QUICK_PROMPTS, nextChoice, quickCardDress, quickCardRows, quickCardWidth } from "./quick.ts"
 import { firstChunk, nextChunk, REVEAL_MS, shownText } from "./reveal.ts"
 import { gapBelow, type Failure, type Reading, type SideState } from "./state.ts"
@@ -345,6 +346,7 @@ function Composer(props: {
   readonly theme: Theme
   readonly placeholder: () => string
   readonly onReady: (field: TextareaRenderable) => void
+  readonly onTyped: () => void
   readonly onSubmit: (question: string) => void
 }) {
   let field: TextareaRenderable | undefined
@@ -380,6 +382,7 @@ function Composer(props: {
         placeholderColor={props.theme.text.muted}
         textColor={props.theme.text.base}
         focusedTextColor={props.theme.text.base}
+        onContentChange={props.onTyped}
         onSubmit={submit}
       />
     </box>
@@ -479,6 +482,7 @@ export function ThreadDialog(props: {
   const [height, setHeight] = createSignal(0)
   const [listed, setListed] = createSignal(false)
   const [chosen, setChosen] = createSignal(0)
+  const [browse, setBrowse] = createSignal<Browse>(NOT_BROWSING)
 
   onMount(() =>
     queueMicrotask(() => {
@@ -489,8 +493,9 @@ export function ThreadDialog(props: {
 
   onCleanup(() => {
     const box = scroller
+    const typed = browse().index === null ? field?.plainText ?? "" : browse().draft
     props.remember(
-      field?.plainText ?? "",
+      typed,
       box
         ? { top: Math.round(box.scrollTop), height: box.height, scrollHeight: box.scrollHeight }
         : place,
@@ -578,6 +583,34 @@ export function ThreadDialog(props: {
       onScroll()
     }
 
+  const recall = (direction: -1 | 1): boolean => {
+    const box = field
+    if (!box) return false
+    const move = recalled(props.state().asked, browse(), direction, box.plainText, box.cursorOffset)
+    if (!move) return false
+    setBrowse(move.browse)
+    box.setText(move.text)
+    box.cursorOffset = move.cursor
+    queueMicrotask(measure)
+    return true
+  }
+
+  const walk = (direction: -1 | 1) => {
+    const box = field
+    if (!box) return
+    const before = box.cursorOffset
+    if (direction === -1) box.moveCursorUp()
+    else box.moveCursorDown()
+    if (box.cursorOffset !== before) return
+    if (recall(direction)) return
+    if (direction === 1 && box.plainText.length === 0) {
+      setChosen(0)
+      setListed(true)
+      return
+    }
+    box.cursorOffset = direction === -1 ? 0 : box.plainText.length
+  }
+
   context.keymap.layer(() => ({
     mode: "modal",
     priority: 1,
@@ -598,14 +631,14 @@ export function ThreadDialog(props: {
       },
       {
         id: "session.aside.home",
-        bind: "home",
+        bind: "ctrl+home",
         title: "First question",
         group: "Dialog",
         run: moveScroller((box) => box.scrollTo(0)),
       },
       {
         id: "session.aside.end",
-        bind: "end",
+        bind: "ctrl+end",
         title: "Newest answer",
         group: "Dialog",
         run: moveScroller((box) => box.scrollTo(box.scrollHeight)),
@@ -617,9 +650,32 @@ export function ThreadDialog(props: {
         group: "Dialog",
         enabled: () => !listed(),
         run: (_input: unknown, event?: KeyEvent) => {
+          if ((field?.plainText.length ?? 0) > 0) return false
           event?.preventDefault()
           if (event?.eventType === "repeat" || event?.repeated) return
           clearing.press()
+        },
+      },
+      {
+        id: "session.aside.recall_older",
+        bind: "up",
+        title: "Earlier question",
+        group: "Dialog",
+        enabled: () => !listed(),
+        run: (_input: unknown, event?: KeyEvent) => {
+          event?.preventDefault()
+          walk(-1)
+        },
+      },
+      {
+        id: "session.aside.recall_newer",
+        bind: "down",
+        title: "Later question",
+        group: "Dialog",
+        enabled: () => !listed(),
+        run: (_input: unknown, event?: KeyEvent) => {
+          event?.preventDefault()
+          walk(1)
         },
       },
       {
@@ -630,6 +686,11 @@ export function ThreadDialog(props: {
         enabled: () => listed(),
         run: (_input: unknown, event?: KeyEvent) => {
           event?.preventDefault()
+          if (chosen() === 0) {
+            setListed(false)
+            field?.focus()
+            return
+          }
           setChosen((index) => nextChoice(index, -1, QUICK_PROMPTS.length))
         },
       },
@@ -807,8 +868,12 @@ export function ThreadDialog(props: {
         onReady={(element) => {
           field = element
         }}
+        onTyped={() => {
+          if ((field?.plainText.length ?? 0) > 0) clearing.disarm()
+        }}
         onSubmit={(question) => {
           clearing.disarm()
+          setBrowse(NOT_BROWSING)
           props.ask(question)
         }}
       />

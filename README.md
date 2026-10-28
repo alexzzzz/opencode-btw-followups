@@ -50,15 +50,30 @@ left.
 
 ![The /btw window with two questions, two answers and the composer](docs/btw-window.png)
 
-`PageUp`, `PageDown`, `Home` and `End` move the transcript, `Delete` clears the thread, and
-`Esc` closes the window and keeps the thread. A click on `copy thread` copies the whole
-thread through the terminal clipboard.
+`PageUp`, `PageDown`, `Ctrl+Home` and `Ctrl+End` move the transcript, `Delete` clears the
+thread, and `Esc` closes the window and keeps the thread. A click on `copy thread` copies the
+whole thread through the terminal clipboard.
+
+The composer takes the keys the host's own prompt takes: `Home` and `End` for the ends of the
+text, the arrows for the cursor, and the word and selection keys of the host's input table.
+`Delete` deletes a character in front of the cursor, and clears the thread only while the
+composer is empty.
+
+`Up` and `Down` walk through the side questions asked in this session, newest first. The press
+does what the field would do first: `Up` moves a line up and `Down` a line down. At the very
+start of the text `Up` brings back the previous question, at its very end `Down` brings the next
+one, and `Down` past the newest question brings back what was typed. On the first line a press
+that is not at its start goes to the start, and on the last line one that is not at its end goes
+to the end. `Down` in an empty composer with nothing left to recall opens the list of prepared
+prompts.
 
 While a side question is being answered, the `btw` badge in the prompt row opens the
 window for it.
 
 The header of the window holds a marker that opens a list of prepared prompts, and a click on
-one of them asks it.
+one of them asks it. `Down` in an empty composer opens the same list. `Up` and `Down` move the
+pick, `Up` on the first prompt closes the list and puts the cursor back in the composer, and
+`Enter` asks the pick.
 
 A thread belongs to the session it was asked in, and it lives in memory as long as the
 process runs.

@@ -11,6 +11,7 @@ import {
   type SideState,
   type Sides,
 } from "./state.ts"
+import { remembered } from "./history.ts"
 import { createSyntaxStyle } from "./syntax.ts"
 import { transcriptRows } from "./layout.ts"
 import { thread } from "./prompt.ts"
@@ -170,7 +171,11 @@ export default {
     const ask = (sessionID: string, question: string) => {
       const asked = question.trim()
       if (!asked) return
-      edit(sessionID, { failure: undefined, pending: [...view(sessionID).pending, asked] })
+      edit(sessionID, {
+        failure: undefined,
+        pending: [...view(sessionID).pending, asked],
+        asked: remembered(view(sessionID).asked, asked),
+      })
       drain(sessionID)
     }
 

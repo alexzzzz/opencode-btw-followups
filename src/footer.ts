@@ -10,7 +10,7 @@ const SCROLLS_A_PAGE: Hint = ["page up/down", " scroll a page"]
 
 const SCROLLS_A_PAGE_SHORT: Hint = ["page up/down", " scroll"]
 
-const JUMPS: Hint = ["home/end", " jump"]
+const JUMPS: Hint = ["ctrl+home/end", " jump"]
 
 const CLEARS: Hint = ["delete", " clear thread"]
 
@@ -18,11 +18,9 @@ const ASKS: Hint = ["enter", " asks"]
 
 const CLOSES: Hint = ["esc", " closes"]
 
-const MOVES_CURSOR: Hint = ["ctrl+a/ctrl+e", " move the cursor"]
-
 const TIERS: readonly (readonly Hint[])[] = [
-  [SCROLLS, SCROLLS_A_PAGE, JUMPS, CLEARS, ASKS, CLOSES, MOVES_CURSOR],
   [SCROLLS, SCROLLS_A_PAGE, JUMPS, CLEARS, ASKS, CLOSES],
+  [SCROLLS, SCROLLS_A_PAGE_SHORT, JUMPS, CLEARS],
   [SCROLLS, SCROLLS_A_PAGE_SHORT, CLEARS],
   [SCROLLS_A_PAGE_SHORT, CLEARS],
   [CLEARS],

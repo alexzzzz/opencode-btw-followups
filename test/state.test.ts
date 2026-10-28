@@ -24,6 +24,7 @@ describe("stateOf", () => {
   test("a session nothing has been asked in reads as empty rather than as missing", () => {
     expect(stateOf(new Map(), a)).toEqual({
       turns: [],
+      asked: [],
       pending: [],
       active: undefined,
       failure: undefined,
@@ -304,6 +305,29 @@ describe("what the reader left", () => {
     const after = answered(sides, a, turn("first"), 1)
 
     expect(stateOf(after, a).draft).toBe("not asked yet")
+  })
+})
+
+describe("what the reader asked before", () => {
+  test("a thread never asked in has nothing to recall", () => {
+    expect(stateOf(new Map(), a).asked).toEqual([])
+  })
+
+  test("clearing the thread keeps what was asked", () => {
+    let sides: Sides = new Map()
+    sides = answered(sides, a, turn("first"), 1)
+    sides = change(sides, a, { asked: ["first"] })
+
+    expect(stateOf(cleared(sides, a), a).asked).toEqual(["first"])
+  })
+
+  test("one session's questions are not another's to recall", () => {
+    let sides: Sides = new Map()
+    sides = change(sides, a, { asked: ["about a"] })
+    sides = change(sides, b, { asked: ["about b"] })
+
+    expect(stateOf(sides, a).asked).toEqual(["about a"])
+    expect(stateOf(sides, b).asked).toEqual(["about b"])
   })
 })
 

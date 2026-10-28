@@ -61,11 +61,11 @@ copies drift.
   tool attempt and a reply cut short, and repeats the question.
 - Keep the thread whole. Every question resends it, and the reader decides what a side
   conversation should cost them.
-- Clear a thread on `Delete`, and only on a second press, because the composer takes
-  `Delete` as a forward delete and a dropped thread cannot be recovered: the first press
-  puts what the second would drop in the footer, the warning goes away after four seconds,
-  and `cleared` drops the turns and the failure while the queue, the request in flight and
-  the draft stay.
+- Clear a thread on `Delete` in an empty composer, and only on a second press, because the
+  composer takes `Delete` as a forward delete whenever it holds text and a dropped thread
+  cannot be recovered: the first press puts what the second would drop in the footer, the
+  warning goes away after four seconds or the first keystroke, and `cleared` drops the turns
+  and the failure while the queue, the request in flight and the draft stay.
 - Keep the whole tool set in place, and let `RULES` hold tools out of a side answer. The free
   tier refuses a request that carries no real tools.
 
@@ -84,8 +84,10 @@ copies drift.
 - Close the plugin's own dialog on the way out, and only while that window is up, because the
   host's `dialog.clear()` closes whichever dialog is active. A terminal too short to open a
   window costs the reader the message alone.
-- Write the question typed and not asked, and the reading position, on the way out, and put
-  the position back only once the transcript is as tall as it was left.
+- Write the draft on the way out, which is the question typed and not asked and never the
+  question a recall left standing, because a recalled question is one the reader has not
+  decided to ask. Write the reading position too, and put it back only once the transcript is
+  as tall as it was left.
 - Pass cleanup as the dialog's `onClose` and keep it idempotent, because the host closes its
   own dialog on Escape and Ctrl+C and calls `onClose` for every entry it clears.
 - Take the session from a slot input or a signal rather than from `router.current()`, which is
@@ -96,9 +98,26 @@ copies drift.
 - Keep the panel inside the terminal. `src/layout.ts` owns that arithmetic, and
   `test/layout.test.ts` holds it in place, because a cell written outside the panel is not
   repainted when the panel closes.
-- Bind Home, End, PageUp and PageDown in a `mode: "modal"` keymap layer registered by the
-  dialog component. The composer holds the focus, and a layer resolves ahead of a focused
-  renderable, so the layer is the path that works.
+- Bind Ctrl+Home, Ctrl+End, PageUp and PageDown in a `mode: "modal"` keymap layer registered
+  by the dialog component. The composer holds the focus, and a layer resolves ahead of a
+  focused renderable, so the layer is the path that works. Leave bare Home and End to the
+  composer, because the host prompt keeps them for the ends of the input and jumps the
+  messages on them only while nothing is focused, so taking them makes the field unlike every
+  other one in the host.
+- Recall what was asked in the side thread, newest first, and keep it when the thread is
+  cleared, because a clear drops what the thread resends and not what the reader typed. Up and
+  Down move the cursor through the composer first, and only a press that has nowhere to go
+  walks the list: Up at the very start of the text, Down at its very end. A press on the first
+  line that is not at its start goes to the start, and one on the last line that is not at its
+  end goes to the end, so the key means the same thing on every line. The walk saves what was
+  typed and puts it back when it leaves the newest question. Down in an empty composer with
+  nothing left to recall opens the quick prompt list, because the key has nowhere else to go and
+  the list is the only thing below it. `src/state.ts` holds the list beside the thread,
+  `src/history.ts` owns the walk, and `test/history.test.ts` holds it in place.
+- Take Up and Down in the same modal layer, because the composer is resolved after the layer:
+  moving the cursor there is the dialog's own call, and the key must not reach the session
+  behind the window. Hold both off while the quick list is open, and return `false` rather
+  than taking `Delete` while the composer holds text, so that key stays a forward delete.
 - Measure the panel width from the dialog's own root box on `onSizeChange`, because the host
   chooses the panel width. The footer fits its hints to that width, longest wording first and
   the next tier down when the panel is too narrow, and draws none rather than one cut short.
@@ -118,14 +137,16 @@ copies drift.
   row. `src/quick.ts` owns the prompts, the marker, the block's width and its dress,
   `src/layout.ts` owns the rows the open list may take, and `test/quick.test.ts` and
   `test/layout.test.ts` hold that in place.
-- Make the list answer the keyboard as well as the mouse: Up and Down move the pick and wrap at
-  both ends, Enter asks the picked prompt, Esc closes the list and leaves the window standing,
-  and a hover puts the pick under the pointer. The pick is the row in the base colour with an
-  accent number; the rest stay muted and faint. The bindings sit in the modal layer beside the
-  scroll keys and are enabled only while the list is open, so Enter still asks a typed question
-  and the arrows still move the cursor otherwise. `nextChoice` in `src/quick.ts` moves the pick,
-  and `test/quick.test.ts` holds it in place. Delete is held off while the list is open, so a
-  menu never drops the thread behind it.
+- Make the list answer the keyboard as well as the mouse: Down moves the pick and wraps from the
+  last prompt to the first, Up moves it back and closes the list on the first prompt, Enter asks
+  the picked prompt, Esc closes the list and leaves the window standing, and a hover puts the pick
+  under the pointer. Up is the way out because the composer is where the reader came from and the
+  first prompt is the top of the list, and closing puts the focus back there. The pick is the row
+  in the base colour with an accent number; the rest stay muted and faint. The bindings sit in
+  the modal layer beside the scroll keys and are enabled only while the list is open, so Enter
+  still asks a typed question and the arrows still move the cursor otherwise. `nextChoice` in
+  `src/quick.ts` moves the pick, and `test/quick.test.ts` holds it in place. Delete is held off
+  while the list is open, so a menu never drops the thread behind it.
 - Ask a quick prompt the way a typed question is asked, and leave the composer alone, so
   that a click never throws away what the reader typed. The click is a mouse up, the way the
   host sends its own.

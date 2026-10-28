@@ -66,9 +66,10 @@ would work and was not wanted.
 
 `Delete` drops the thread, and it is also the key a focused textarea takes as a forward
 delete. A `mode: "modal"` keymap layer resolves ahead of the focused renderable, which is
-what lets the window take the key at all, so binding it costs the composer that key. The
-host's input keymap binds `Ctrl+D` and `Shift+Delete` to the same forward delete, and the
-window does not take either.
+what lets the window take the key at all. The window takes it only while the composer is empty,
+where a forward delete has nothing to do; a composer holding text keeps it, command returns
+`false`, and the field deletes as it always would. The host's input keymap binds `Ctrl+D` and
+`Shift+Delete` to the same forward delete, and the window does not take either.
 
 One press would therefore sit one careless keystroke away from throwing away a conversation
 that cannot be recovered, so the drop waits for a second press within four seconds and the
@@ -76,7 +77,8 @@ footer carries the warning while it waits. Autorepeat must not confirm the warni
 armed. Under the kitty protocol the host marks a repeat with `eventType: "repeat"`, and those
 are ignored; a terminal without that protocol sends the same press again with no marker at
 all, so the second press must also arrive at least 300 ms after the first, which is longer
-than keyboard autorepeat ever takes.
+than keyboard autorepeat ever takes. Typing the first character into the composer disarms the
+warning, because an empty composer is the only place the key means a clear.
 
 The warning takes the footer row: on the shortest terminal `transcript()` allows the panel
 is already full once the composer has grown to `COMPOSER_ROWS`, and one more row would push
@@ -88,6 +90,92 @@ names a question that is not in the thread. A request already sent is not called
 answer joins the emptied thread, the queue keeps what has not gone out, and the draft stays:
 the reader asked to drop the history, not the work in progress. A clear also resets the
 reveal timer and the "new answers below" notice, since both count turns that are gone.
+
+## The questions asked before
+
+`Up` at the very start of the composer brings back the last side question, and `Down` at its very
+end walks forward again. The list follows the host's prompt in the terminal
+(`packages/opencode/src/cli/cmd/run/prompt.shared.ts`, `movePromptHistory`) and in the web app
+(`packages/session-ui/src/v2/components/prompt-input/interaction.ts`, `canNavigateHistory`); the
+keys around it follow the field itself.
+
+What the host settles, and this window keeps:
+
+- The list runs oldest first and `Up` enters at the newest question. A second `Up` moves one
+  back, and `Down` moves one forward.
+- The list is capped at 200 questions and drops a question that repeats the one before it.
+- The cursor lands at the start of an older question and at the end of a newer one, which is
+  where the reader would type next in either direction.
+- `Down` past the newest question brings back the draft the walk started from, at its end.
+
+Where this window goes further than the host: every press first does what the field would do.
+`Up` moves the cursor one visual line up, wraps included, and only a press with nowhere to go
+walks the list. That press either sits at the very start of the text and recalls, or sits
+anywhere else on the first line and goes to the start of the text. `Down` is the mirror: one
+visual line down, then the next question at the very end of the text, or the end of the text
+from anywhere else on the last line. The host's own prompt history asks for an empty prompt and
+an offset of zero, which leaves a draft of several lines with a dead key on its first line, and
+the field's own `move-up` has nothing to do at the top row either.
+
+The walk uses `moveCursorUp` and `moveCursorDown` on the textarea and reads `cursorOffset`
+before and after, because the editor is the only thing that knows where a wrapped line ends.
+`visualRow` cannot answer that: OpenTUI documents it as viewport relative, so row zero is the
+first visible row rather than the first row of the text.
+
+The list belongs to the session's side thread and sits in `SideState.asked` beside the turns,
+because it is a fact about what that session asked. A question is stored trimmed, because the
+composer already trims it before asking. A clear keeps the list: `Delete` drops the turns the
+thread would resend, and what the reader typed is not one of them. The walk itself lives in the
+window, an index and the saved draft, because a position means nothing once the window is down,
+and the draft is what the window writes back to `SideState.draft`.
+
+`Down` in an empty composer with nothing left to recall opens the quick prompt list. The key has
+nowhere else to go, the list is the one thing the window keeps below the composer, and a session
+that has asked nothing has no other key that reaches it, since the header marker is a mouse
+target first. A walk that has just returned an empty draft reaches the same place on the next
+press, so the bottom of the field is one gesture whichever way the reader got there.
+
+Both keys sit in the modal layer beside the scroll keys and are held off while the quick list is
+open, because the arrows move the list there. Unlike the recall of a scroll key, a press of `Up`
+or `Down` is always taken: a command may return `false` to let the key through, which
+`KeymapCommand.run` in `@opencode/plugin` documents, but the key would then leave the dialog and
+reach the session behind it, and the field's own move is what the window just made.
+
+`cursorOffset` on the OpenTUI textarea is an index into `plainText` in the same units as
+`String.length`, which is what the ends of a question are measured against.
+
+## The keys the composer keeps
+
+The composer is the host's own field, not a copy of it. It is a `TextareaRenderable` focused
+inside the dialog, and the host registers its whole input table for any focused textarea through
+`registerManagedTextareaLayer` (`packages/tui/src/keymap.tsx`, which gathers the `input` commands
+for the renderer). Word moves, selection, `ctrl+k`, `ctrl+u`, `ctrl+w`, undo and redo therefore
+already behave as they do in the prompt, and the window has never had to bind them.
+
+There is no prompt component a plugin can reuse. The prompt is
+`packages/tui/src/component/prompt/index.tsx`, a route component wired to the session, its
+autocomplete, its agent and its model, and `@opencode/plugin/tui` exposes a context of
+`ui.dialog`, `ui.slot`, `keymap`, `theme`, `data`, `client` and `renderer`, not that component.
+The host's text dialog, `packages/tui/src/ui/dialog-prompt.tsx`, is reachable as
+`ui.dialog.prompt(...)` and is a separate one-shot dialog rather than a composer inside another
+one. What it does show is the convention for a textarea in a dialog: a plain textarea, one
+submit command in a `priority: 1` layer, and no other key taken from the field.
+
+The window takes `PageUp`, `PageDown`, `Up`, `Down`, `Enter` and `Escape` from the field, and
+each one matches what the host does. `PageUp` and `PageDown` scroll the messages even while the
+prompt has focus (`sessionGlobalBindingCommands` in `packages/tui/src/routes/session/index.tsx`,
+which is not gated on focus), `Enter` submits, `Escape` closes the dialog, and `Up` and `Down`
+walk the history on the rules above. `Delete` the window takes only while the composer is empty,
+where the clear it carries is the only thing the key can do; with text in it the command
+returns `false`, the key stays a forward delete in the field, and the first keystroke disarms a
+warning that was waiting.
+
+`Home` and `End` were the exception. The host binds them to the ends of the input
+(`input_buffer_home` and `input_buffer_end`) and jumps the message list on them only while
+nothing has focus (`sessionGlobalUnfocusedBindingCommands`, same route file), so a field that
+answers `Home` with a scrolled transcript is unlike every other field in the host. The window now
+leaves both to the composer and jumps the transcript on `Ctrl+Home` and `Ctrl+End`, two keys the
+input table leaves free, and the footer hint names them.
 
 ## The badge in the prompt row
 
@@ -149,11 +237,15 @@ The evidence was taken against OpenCode 2.1.2 and `@opentui/core` 0.5.14.
   three rows to eight, and the list had room. When the composer is at its tallest there is
   nothing to take, and the list drops its blank row and sits as the prompts alone. A block that
   ignored the room spilled over the composer and the footer and was cut at the panel's edge.
-- The list takes the keyboard as well as the mouse: Up and Down move the pick and wrap at both
-  ends, Enter asks the picked prompt, and Esc closes the list and leaves the window standing.
-  The pick is the row in the base colour with an accent number, the rest stay muted and faint,
-  and a hover puts the pick under the pointer, so the row a click would ask is the row Enter
-  would ask. The bindings sit in the modal layer beside the scroll keys and are enabled only
+- The list takes the keyboard as well as the mouse: Down moves the pick and wraps from the last
+  prompt to the first, Up moves it back and closes the list when it is already on the first,
+  Enter asks the picked prompt, and Esc closes the list and leaves the window standing. Up is the
+  way out because the composer is where the reader came from, and the first prompt is the top of
+  the list; Down still wraps, because a menu whose last row is followed by nothing is a menu with
+  a dead key at its end. Closing returns the focus to the composer, so a press that left it comes
+  back to it. The pick is the row in the base colour with an accent number, the rest stay muted
+  and faint, and a hover puts the pick under the pointer, so the row a click would ask is the row
+  Enter would ask. The bindings sit in the modal layer beside the scroll keys and are enabled only
   while the list is open, so Enter still asks a typed question and the arrows still move the
   cursor when the list is down. Delete is held off while the list is open, so a menu never drops
   the thread behind it.

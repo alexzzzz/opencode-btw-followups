@@ -19,6 +19,7 @@ export type SideTurn = {
 
 export type SideState = {
   readonly turns: readonly SideTurn[]
+  readonly asked: readonly string[]
   readonly pending: readonly string[]
   readonly active: string | undefined
   readonly failure: Failure | undefined
@@ -28,6 +29,7 @@ export type SideState = {
 
 export const EMPTY: SideState = Object.freeze({
   turns: [],
+  asked: [],
   pending: [],
   active: undefined,
   failure: undefined,
