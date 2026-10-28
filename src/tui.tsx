@@ -152,6 +152,7 @@ export default {
             state={() => view(sessionID)}
             syntax={syntax}
             limit={() => transcriptRows(rows())}
+            rows={() => rows()}
             sessionMoved={() => movedSinceLast(view(sessionID).turns, spokenCount(sessionID))}
             remember={(draft, place) => edit(sessionID, { draft, place })}
             ask={(question) => ask(sessionID, question)}

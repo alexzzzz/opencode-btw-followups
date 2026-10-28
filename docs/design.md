@@ -132,14 +132,34 @@ The evidence was taken against OpenCode 2.1.2 and `@opentui/core` 0.5.14.
 - The marker sits between two spacers in the header row, so it lands in the middle of the
   row: it is where the reader already looks, and a row of its own would cost the panel a
   row.
-- The list is an absolute child of the panel: a row below the header, the panel's own
-  width, and a `zIndex` above the transcript. An absolute child is taken out of the parent's
-  flow, so nothing inside the window moves when the list opens. The transcript keeps its
-  size, its scroll position and the reader's place in it.
-- The list carries the panel's own background, because the transcript is drawn under it.
-- The click is a mouse up, because that is the click OpenTUI sends, and the hover lightens the
-  label the way the host lightens its own clickable labels. A click that ends a text selection
-  is not a click on a prompt, and the host makes that guard for its own labels.
+- The list is an absolute child of the panel: a row below the header, and a `zIndex` above the
+  transcript. An absolute child is taken out of the parent's flow, so nothing inside the window
+  moves when the list opens. The transcript keeps its size, its scroll position and the reader's
+  place in it.
+- The list is a block rather than a band across the panel, because a band cuts the answer behind
+  it into two pieces that read as one. The block is the longest prompt plus the number column,
+  the gap and the padding: 33 cells for the six prompts of today. A panel narrower than the
+  block gives it the panel width less a cell on each side, and the prompts wrap.
+- The block draws no frame. The host draws the panel's frame, and a box inside it reads as a box
+  inside a box; the raised background and a blank row are what lift the list off the transcript.
+- The block starts under the header, and the window grows to meet it: while the list is open the
+  transcript may take the rows the terminal has left once the chrome and the composer are paid
+  for, never more than the list needs. A composer shorter than its six-row cap leaves that many
+  rows unused, which is what a phone showed: a seventeen-row terminal grew its transcript from
+  three rows to eight, and the list had room. When the composer is at its tallest there is
+  nothing to take, and the list drops its blank row and sits as the prompts alone. A block that
+  ignored the room spilled over the composer and the footer and was cut at the panel's edge.
+- The list takes the keyboard as well as the mouse: Up and Down move the pick and wrap at both
+  ends, Enter asks the picked prompt, and Esc closes the list and leaves the window standing.
+  The pick is the row in the base colour with an accent number, the rest stay muted and faint,
+  and a hover puts the pick under the pointer, so the row a click would ask is the row Enter
+  would ask. The bindings sit in the modal layer beside the scroll keys and are enabled only
+  while the list is open, so Enter still asks a typed question and the arrows still move the
+  cursor when the list is down. Delete is held off while the list is open, so a menu never drops
+  the thread behind it.
+- The background is what says the two are separate, because the transcript is drawn under it.
+- The click is a mouse up, because that is the click OpenTUI sends. A click that ends a text
+  selection is not a click on a prompt, and the host makes that guard for its own labels.
 
 ## The markdown of an answer
 
@@ -225,6 +245,16 @@ calls its request off and is not reported, because there is no conversation left
 about.
 
 ## What the window says
+
+The header is fitted to the panel the way the footer is, because a row wider than the panel
+does not clip, it wraps: a phone gave the dialog about forty-four cells and the title came out
+as `bt` above `w`, with the count wrapped between them and `esc close` cut to `esc clo`.
+
+`src/header.ts` builds the row as a list of cells, spacers included, so the width it measures is
+the width the row draws, and it takes the first list that fits. The count goes first, then the
+notice of what is above, then the escape hint; the quick marker shortens to `▸ 6 prompts` and
+then `▸ 6` only after the escape hint is gone. A panel of forty-four cells keeps the title, the
+full marker and the escape hint in forty-one cells.
 
 The header names the model that will answer, read from the session the window belongs to,
 because `session.generate` is answered by that session's model and the prompt's own selection

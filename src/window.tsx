@@ -21,8 +21,9 @@ import {
   keyHints,
   type Hint,
 } from "./footer.ts"
-import { COMPOSER_ROWS, RAIL } from "./layout.ts"
-import { QUICK_PROMPTS, quickMarker } from "./quick.ts"
+import { COMPOSER_ROWS, listTranscriptRows, RAIL } from "./layout.ts"
+import { HEADER_GAP, HEADER_PAD, HEADER_TITLE, CLOSE_LABEL, headerRow, type HeaderRow } from "./header.ts"
+import { QUICK_PROMPTS, nextChoice, quickCardDress, quickCardRows, quickCardWidth } from "./quick.ts"
 import { firstChunk, nextChunk, REVEAL_MS, shownText } from "./reveal.ts"
 import { gapBelow, type Failure, type Reading, type SideState } from "./state.ts"
 
@@ -236,63 +237,106 @@ function Turn(props: {
 
 function WindowHeader(props: {
   readonly theme: Theme
-  readonly count: () => string
-  readonly above: () => number
-  readonly listed: () => boolean
+  readonly row: () => HeaderRow
   readonly onToggle: () => void
   readonly onClose: () => void
 }) {
   const muted = () => props.theme.text.muted
+  const row = () => props.row()
 
   return (
-    <box flexDirection="row" gap={2} paddingLeft={2} paddingRight={2} flexShrink={0}>
-      <text fg={props.theme.text.base} attributes={BOLD}>btw</text>
-      <text fg={muted()}>{props.count()}</text>
-      <text fg={muted()} flexGrow={1} />
-      <Clickable
-        base={props.theme.text.base}
-        muted={muted()}
-        label={quickMarker(QUICK_PROMPTS.length, props.listed())}
-        onClick={props.onToggle}
-        wrap={false}
-      />
-      <text fg={muted()} flexGrow={1} />
-      <Show when={props.above() > 0}>
-        <text fg={muted()} wrapMode="none">{`↑ ${props.above()} above`}</text>
-      </Show>
-      <text fg={muted()} onMouseUp={props.onClose} wrapMode="none">esc close</text>
+    <box
+      flexDirection="row"
+      gap={HEADER_GAP}
+      paddingLeft={HEADER_PAD}
+      paddingRight={HEADER_PAD}
+      flexShrink={0}
+    >
+      <text fg={props.theme.text.base} attributes={BOLD} wrapMode="none">{HEADER_TITLE}</text>
+      <For each={row().cells}>
+        {(cell) => {
+          if (cell === "spacer") return <text fg={muted()} flexGrow={1} />
+          if (cell === "count") return <text fg={muted()} wrapMode="none">{row().count}</text>
+          if (cell === "above") return <text fg={muted()} wrapMode="none">{row().above}</text>
+          if (cell === "close")
+            return (
+              <text fg={muted()} onMouseUp={props.onClose} wrapMode="none">{CLOSE_LABEL}</text>
+            )
+          return (
+            <Clickable
+              base={props.theme.text.base}
+              muted={muted()}
+              label={row().marker}
+              onClick={props.onToggle}
+              wrap={false}
+            />
+          )
+        }}
+      </For>
     </box>
   )
 }
 
-function QuickList(props: { readonly theme: Theme; readonly onAsk: (prompt: string) => void }) {
+function QuickRows(props: {
+  readonly theme: Theme
+  readonly chosen: number
+  readonly onChoose: (index: number) => void
+  readonly onAsk: (prompt: string) => void
+}) {
+  const accent = () => props.theme.hue.interactive[200]
+  const faint = () => props.theme.text.faint
+  const base = () => props.theme.text.base
+  const muted = () => props.theme.text.muted
+
   return (
-    <box
-      position="absolute"
-      left={0}
-      top={1}
-      width="100%"
-      zIndex={1}
-      flexDirection="column"
-      alignItems="flex-start"
-      paddingLeft={2}
-      paddingRight={2}
-      backgroundColor={props.theme.surface("dialog").background.raised.high}
-    >
-      <For each={QUICK_PROMPTS}>
-        {(prompt, index) => (
-          <box flexDirection="row" gap={1} flexShrink={0}>
-            <text fg={props.theme.text.faint} wrapMode="none">{`${index() + 1}.`}</text>
-            <Clickable
-              base={props.theme.text.base}
-              muted={props.theme.text.muted}
-              label={prompt}
-              onClick={() => props.onAsk(prompt)}
-              wrap
-            />
+    <For each={QUICK_PROMPTS}>
+      {(prompt, index) => {
+        const picked = () => props.chosen === index()
+        return (
+          <box
+            flexDirection="row"
+            gap={1}
+            flexShrink={0}
+            onMouseOver={() => props.onChoose(index())}
+            onMouseUp={() => props.onAsk(prompt)}
+          >
+            <text fg={picked() ? accent() : faint()} wrapMode="none">{`${index() + 1}.`}</text>
+            <text fg={picked() ? base() : muted()} wrapMode="word">{prompt}</text>
           </box>
-        )}
-      </For>
+        )
+      }}
+    </For>
+  )
+}
+
+function QuickList(props: {
+  readonly theme: Theme
+  readonly width: number
+  readonly room: number
+  readonly chosen: number
+  readonly onChoose: (index: number) => void
+  readonly onAsk: (prompt: string) => void
+}) {
+  const padded = () => quickCardDress(QUICK_PROMPTS.length, props.room) === "padded"
+
+  return (
+    <box position="absolute" left={0} top={1} width="100%" zIndex={1} alignItems="center">
+      <box
+        flexDirection="column"
+        width={Math.min(quickCardWidth(QUICK_PROMPTS), Math.max(0, props.width - 2))}
+        paddingLeft={2}
+        paddingRight={2}
+        paddingTop={padded() ? 1 : 0}
+        paddingBottom={padded() ? 1 : 0}
+        backgroundColor={props.theme.surface("dialog").background.raised.high}
+      >
+        <QuickRows
+          theme={props.theme}
+          chosen={props.chosen}
+          onChoose={props.onChoose}
+          onAsk={props.onAsk}
+        />
+      </box>
     </box>
   )
 }
@@ -411,6 +455,7 @@ export function ThreadDialog(props: {
   readonly state: () => SideState
   readonly syntax: SyntaxStyle
   readonly limit: () => number
+  readonly rows: () => number
   readonly sessionMoved: () => boolean
   readonly remember: (draft: string, place: Reading | undefined) => void
   readonly ask: (question: string) => void
@@ -431,7 +476,9 @@ export function ThreadDialog(props: {
   const reveal = useAnswerReveal(props.state)
   const frame = useSpinnerFrame(() => Boolean(props.state().active))
   const [width, setWidth] = createSignal(0)
+  const [height, setHeight] = createSignal(0)
   const [listed, setListed] = createSignal(false)
+  const [chosen, setChosen] = createSignal(0)
 
   onMount(() =>
     queueMicrotask(() => {
@@ -466,6 +513,7 @@ export function ThreadDialog(props: {
   }
 
   const measure = () => {
+    setHeight(panel?.height ?? 0)
     const box = scroller
     if (!box) return
     const saved = place
@@ -567,10 +615,56 @@ export function ThreadDialog(props: {
         bind: "delete",
         title: "Clear the side thread",
         group: "Dialog",
+        enabled: () => !listed(),
         run: (_input: unknown, event?: KeyEvent) => {
           event?.preventDefault()
           if (event?.eventType === "repeat" || event?.repeated) return
           clearing.press()
+        },
+      },
+      {
+        id: "session.aside.choose_up",
+        bind: "up",
+        title: "Previous quick prompt",
+        group: "Dialog",
+        enabled: () => listed(),
+        run: (_input: unknown, event?: KeyEvent) => {
+          event?.preventDefault()
+          setChosen((index) => nextChoice(index, -1, QUICK_PROMPTS.length))
+        },
+      },
+      {
+        id: "session.aside.choose_down",
+        bind: "down",
+        title: "Next quick prompt",
+        group: "Dialog",
+        enabled: () => listed(),
+        run: (_input: unknown, event?: KeyEvent) => {
+          event?.preventDefault()
+          setChosen((index) => nextChoice(index, 1, QUICK_PROMPTS.length))
+        },
+      },
+      {
+        id: "session.aside.choose",
+        bind: "enter",
+        title: "Ask the picked quick prompt",
+        group: "Dialog",
+        enabled: () => listed(),
+        run: (_input: unknown, event?: KeyEvent) => {
+          event?.preventDefault()
+          const question = QUICK_PROMPTS[chosen()]
+          if (question) askQuick(question)
+        },
+      },
+      {
+        id: "session.aside.close_list",
+        bind: "escape",
+        title: "Close the prompt list",
+        group: "Dialog",
+        enabled: () => listed(),
+        run: (_input: unknown, event?: KeyEvent) => {
+          event?.preventDefault()
+          setListed(false)
         },
       },
     ],
@@ -588,6 +682,13 @@ export function ThreadDialog(props: {
   const rightText = () => belowLabel(newAnswers(), below())
   const confirmText = () => clearLabel(turnCount(), width())
   const hintTier = () => keyHints(width(), copyText(), rightText())
+  const header = () => headerRow(width(), countText(), above(), QUICK_PROMPTS.length, listed())
+  const listRoom = () => Math.max(0, height() - 2)
+  const cardRows = () => quickCardRows(QUICK_PROMPTS.length)
+  const transcriptCap = () =>
+    listed()
+      ? listTranscriptRows(props.rows(), field?.height ?? 1, cardRows())
+      : props.limit()
 
   const activeQuestion = () => props.state().active ?? ""
   const model = () => modelName(context.data, props.sessionID)
@@ -600,8 +701,12 @@ export function ThreadDialog(props: {
       ref={(element) => {
         panel = element
         setWidth(element.width)
+        setHeight(element.height)
       }}
-      onSizeChange={() => setWidth(panel?.width ?? 0)}
+      onSizeChange={() => {
+        setWidth(panel?.width ?? 0)
+        setHeight(panel?.height ?? 0)
+      }}
       flexDirection="column"
       gap={1}
       paddingBottom={1}
@@ -610,22 +715,31 @@ export function ThreadDialog(props: {
     >
       <WindowHeader
         theme={theme}
-        count={countText}
-        above={above}
-        listed={listed}
-        onToggle={() => setListed(!listed())}
+        row={header}
+        onToggle={() => {
+          setChosen(0)
+          setListed(!listed())
+        }}
         onClose={props.close}
       />
 
       <Show when={listed()}>
-        <QuickList theme={theme} onAsk={askQuick} />
+        <QuickList
+          theme={theme}
+          width={width()}
+          room={listRoom()}
+          chosen={chosen()}
+          onChoose={(index) => setChosen(index)}
+          onAsk={askQuick}
+        />
       </Show>
 
       <scrollbox
         ref={(element) => {
           scroller = element
         }}
-        maxHeight={props.limit()}
+        maxHeight={transcriptCap()}
+        minHeight={listed() ? Math.min(cardRows(), transcriptCap()) : 0}
         stickyScroll
         stickyStart="bottom"
         contentOptions={{ minHeight: 0 }}

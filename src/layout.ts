@@ -13,3 +13,9 @@ export const transcriptRows = (terminalRows: number) => {
   const leftOver = terminalRows - MIN_PANEL
   return Math.max(0, Math.min(share, leftOver))
 }
+
+export const listTranscriptRows = (terminalRows: number, composerRows: number, needed: number) => {
+  const share = Math.floor(terminalRows * TRANSCRIPT_SHARE)
+  const leftOver = terminalRows - PANEL_CHROME - composerRows
+  return Math.max(transcriptRows(terminalRows), Math.min(needed, share, leftOver))
+}

@@ -10,6 +10,10 @@ builds the package the npm release ships, in that order. `bun test` runs the tes
 TUI half has no behavioural test, so a change to the dialog, the command or the queue also
 needs one pass by hand in a terminal.
 
+The running TUI loads this plugin from `<config>/plugins/btw-followups` rather than from the
+tree, so `bun run deploy` copies the sources there and `bun run deploy:check` says whether the
+copy is behind. A change the copy does not hold is a change the window never shows.
+
 ## Where things are
 
 - `src/index.ts` is the server entrypoint, and it registers nothing because the thread is a
@@ -20,8 +24,8 @@ needs one pass by hand in a terminal.
   scroll and clear handling inside them. `test/tui.test.ts` pins the order of the attributes
   on its markdown element, which is a rule no other test can see.
 - `src/syntax.ts` is the syntax style a fenced block in an answer is drawn with.
-- `src/prompt.ts`, `src/layout.ts`, `src/quick.ts`, `src/state.ts`, `src/footer.ts` and
-  `src/reveal.ts` are pure, and `test/` covers them.
+- `src/prompt.ts`, `src/layout.ts`, `src/quick.ts`, `src/state.ts`, `src/footer.ts`,
+  `src/header.ts` and `src/reveal.ts` are pure, and `test/` covers them.
 - `README.md` is what a user reads.
 - `docs/design.md` holds the measurement behind every rule below, plus the install
   evidence and the packaging rules. Read it before you change the dialog, the prompt, the
@@ -99,14 +103,35 @@ copies drift.
   chooses the panel width. The footer fits its hints to that width, longest wording first and
   the next tier down when the panel is too narrow, and draws none rather than one cut short.
   `src/footer.ts` owns that fitting, and `test/footer.test.ts` holds it in place.
+- Fit the header the same way, because a row wider than the panel wraps mid-word rather than
+  clipping. The count goes first, then the notice of what is above, then the escape hint, and
+  the quick marker shortens to `▸ 6 prompts` and then `▸ 6`. `src/header.ts` owns that
+  fitting, and `test/header.test.ts` holds it in place.
 - Keep the quick prompts behind one marker in the header of the window, and let the list
   of them float over the transcript rather than take rows from it, so nothing inside the
-  window moves when it opens and the reading position stays where it was. The list is
-  centred in the panel, because a list of prompts is read down the middle. `src/quick.ts`
-  owns the prompts and the marker, and `test/quick.test.ts` holds that in place.
+  window moves when it opens and the reading position stays where it was. While the list is
+  open the window takes the rows the terminal has left over, never more than the list needs,
+  because a composer shorter than its cap leaves rows that would otherwise go unused. The list
+  is a block of its own width, centred under the header, lifted off the transcript by the raised
+  background and a blank row rather than by a frame; a panel narrower than the block gives it
+  the panel width and the prompts wrap, and a panel with nothing to grow into drops the blank
+  row. `src/quick.ts` owns the prompts, the marker, the block's width and its dress,
+  `src/layout.ts` owns the rows the open list may take, and `test/quick.test.ts` and
+  `test/layout.test.ts` hold that in place.
+- Make the list answer the keyboard as well as the mouse: Up and Down move the pick and wrap at
+  both ends, Enter asks the picked prompt, Esc closes the list and leaves the window standing,
+  and a hover puts the pick under the pointer. The pick is the row in the base colour with an
+  accent number; the rest stay muted and faint. The bindings sit in the modal layer beside the
+  scroll keys and are enabled only while the list is open, so Enter still asks a typed question
+  and the arrows still move the cursor otherwise. `nextChoice` in `src/quick.ts` moves the pick,
+  and `test/quick.test.ts` holds it in place. Delete is held off while the list is open, so a
+  menu never drops the thread behind it.
 - Ask a quick prompt the way a typed question is asked, and leave the composer alone, so
-  that a click never throws away what the reader typed. The click is a mouse up and the
-  hover lightens the label, the way the host lightens its own clickable labels.
+  that a click never throws away what the reader typed. The click is a mouse up, the way the
+  host sends its own.
+- Draw no frame of your own. The host draws the panel's frame, and a second box inside it reads
+  as a box inside a box; separate a floating part with the raised background and a blank row
+  instead. The left rails are lines rather than frames, and they stay.
 - Name `flexDirection` on every box with more than one child, since a box lays its children in
   a column otherwise.
 - Name the style and the colour before the content on the answer's markdown element, because the
