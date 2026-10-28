@@ -2,8 +2,8 @@
 
 Reference behind every decision in this plugin. Read it before you change the dialog, the
 prompt, the install notes or the build, because each item below cost a measurement to find.
-The header comment of each module carries the reason for that module's own shape, and
-`README.md` carries what a user sees.
+The sources carry no comments: a name says what a thing does, and this file says why it is
+shaped that way. `README.md` carries what a user sees.
 
 ## What the host does not expose
 
@@ -117,6 +117,30 @@ and against `@opentui/core` 0.5.14 and 0.6.6.
 - The host can have the mouse turned off, with `mouse: false` in its config. The badge is
   then drawn and cannot be clicked, and the reader has the command.
 
+## The quick prompts
+
+The quick prompts are the prepared questions the window offers, so that a reader who wants to
+know how it is going does not have to write the question down first. They sit behind one
+marker in the header of the window: the marker opens the list of all of them, centred in the
+panel, floating over the transcript.
+
+The evidence was taken against OpenCode 2.1.2 and `@opentui/core` 0.5.14.
+
+- The panel is the host's `large` dialog, which is 88 cells wide
+  (`packages/tui/src/ui/dialog.tsx`, `dialogWidth`). The prompts are 16 to 32 cells long,
+  so each of them takes a row of the list and none of them is cut.
+- The marker sits between two spacers in the header row, so it lands in the middle of the
+  row: it is where the reader already looks, and a row of its own would cost the panel a
+  row.
+- The list is an absolute child of the panel: a row below the header, the panel's own
+  width, and a `zIndex` above the transcript. An absolute child is taken out of the parent's
+  flow, so nothing inside the window moves when the list opens. The transcript keeps its
+  size, its scroll position and the reader's place in it.
+- The list carries the panel's own background, because the transcript is drawn under it.
+- The click is a mouse up, because that is the click OpenTUI sends, and the hover lightens the
+  label the way the host lightens its own clickable labels. A click that ends a text selection
+  is not a click on a prompt, and the host makes that guard for its own labels.
+
 ## The markdown of an answer
 
 The answer is drawn by the host's own markdown renderer, which takes the content and the
@@ -148,6 +172,69 @@ the first display.
 
 The colour is read from the same place as the style, so it goes before the content too.
 
+## The answer as it arrives
+
+`session.generate` returns the finished text in one response, so the newest answer is written
+out on a timer rather than streamed. The step is one character until an answer passes ninety,
+and then a ninety-fifth of it, so every answer takes about a second and a half however long it
+is. The first chunk lands in the same tick the answer arrives: starting from zero left a gap
+between the spinner going out and the first character, and an answer short enough to arrive in
+one write had nothing under the question until the timer ran.
+
+Only the newest turn is written out again. An older one is drawn whole, and a window reopened
+over a thread draws every turn whole, so a half-revealed answer never leaves markdown's control
+characters on screen. The pacing is in `src/reveal.ts` and `test/reveal.test.ts` holds it.
+
+The reveal is also what keeps the markdown of a finished answer right: a later write rebuilds
+the list block, and the block picks the syntax style up on the way, which is the case described
+above.
+
+## The footer row
+
+One row, one job. While a clear waits for its second press the row is the question and nothing
+else, because a warning read beside four hints is not read at all.
+
+The hints are fitted to the panel rather than abbreviated, because `pgup` is a word the reader
+has to decode. The panel's width is measured from the dialog's root box, the fixed parts of the
+row are taken off it, and the first tier that fits is drawn; the shortest tier names only the
+key that clears the thread, and a panel too narrow even for that gets no hint at all.
+
+A hint is never cut short. OpenTUI lays each text out at its own width, so a row that runs past
+its room does not clip, it overlaps: a phone-sized terminal gave the dialog about fifty cells,
+which leaves the footer twenty-six beside `nothing to copy`, and the two-key tier needs
+forty-one. The screenshot that showed it read `nothing to page up/ scrolldele clear t`. That arithmetic is in `src/footer.ts` and `test/footer.test.ts` holds it.
+
+A reader parked above the newest answer is told what arrived below and offered the way down,
+because `stickyScroll` follows new content only from the bottom and the transcript deliberately
+does not move for them. Reading by hand clears the notice, so the footer never nags a reader who
+has already found the answer themselves.
+
+## The queue behind the window
+
+One request at a time per session. The questions asked while one is out go out together as the
+next one, numbered by `thread`, so they are answered as a list rather than as one run-together
+question.
+
+The loop drains the queue once more on its way out, because a question asked in the tick between
+the last answer and the end of the loop finds the session busy, lands in the queue, and would
+otherwise be sent by nothing.
+
+An empty answer stops the queue with the question in the failure, and an error stops it too:
+answering more questions against a gap in the thread is worse than stopping. A deleted session
+calls its request off and is not reported, because there is no conversation left to answer
+about.
+
+## What the window says
+
+The header names the model that will answer, read from the session the window belongs to,
+because `session.generate` is answered by that session's model and the prompt's own selection
+follows the route the reader may have walked away from. A model the catalogue does not know
+falls back to its own id.
+
+A toast the host refuses is swallowed. Every path that shows one has either written what matters
+into the session's state or has nothing else to say it with, and a throw from a click handler
+would replace the message the reader needed with one they cannot act on.
+
 ## Install notes
 
 The evidence behind the checkout instructions in `README.md`.
@@ -166,8 +253,7 @@ The evidence behind the checkout instructions in `README.md`.
 
   ```sh
   mkdir -p ~/.config/opencode/plugins/btw-followups
-  cp src/index.ts src/tui.tsx src/layout.ts src/prompt.ts src/state.ts \
-     ~/.config/opencode/plugins/btw-followups/
+  cp src/*.ts src/*.tsx ~/.config/opencode/plugins/btw-followups/
   ```
 - The directory form runs the unbuilt sources, and the host picks the reload up from the file
   change. A TUI left open across a reload keeps the old dialog on the host's stack.
@@ -208,14 +294,15 @@ that it still loads.
 ## Verification
 
 The pure modules are covered by tests, and they are the primary seam: the prompt the thread
-travels in, the height arithmetic that keeps the panel on the terminal, and the store that
-keeps one thread per session.
+travels in, the height arithmetic that keeps the panel on the terminal, the store that keeps one
+thread per session, the footer's fitting arithmetic and the pacing of the reveal.
 
 The packaging is verified by packing the tarball, installing it into an empty project, and
 importing each entrypoint.
 
 The TUI half is verified by hand: rendering, scrolling, the composer, the spinner, the
-command, the click on the badge that opens the window, switching sessions with a window
+command, the click on the badge that opens the window, the row of quick questions, the list
+they open, a quick question asked by a click, switching sessions with a window
 up, the line between two exchanges, the markdown of an answer that has finished being
 written, the markdown of that same answer after the window was closed and opened again,
 and the two presses that clear a thread.

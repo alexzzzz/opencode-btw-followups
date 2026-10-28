@@ -29,16 +29,13 @@ describe("thread", () => {
       ],
       ["c"],
     )
-    const order = ["User: a", "You: 1", "User: b", "You: 2", "New question: c"].map((marker) => prompt.indexOf(marker))
+    const order = ["User: a", "You: 1", "User: b", "You: 2", "New question: c"].map((marker) =>
+      prompt.indexOf(marker),
+    )
     expect(order.every((at) => at >= 0)).toBe(true)
     expect([...order].sort((x, y) => x - y)).toEqual(order)
   })
 
-  /**
-   * Questions merged into one request are the case where an answer came back with
-   * only the first part. Two questions run together read as one, so they are numbered
-   * and the prompt says how many there are.
-   */
   test("questions asked together are numbered, not pasted together", () => {
     const prompt = thread([], ["what changed in the parser?", "and in the writer?"])
     expect(prompt).toContain("2 of them asked together")
@@ -52,11 +49,6 @@ describe("thread", () => {
     expect(prompt).toContain("New question: only one")
   })
 
-  /**
-   * This is the rule that was missing when a question asking for several things came
-   * back with one of them. "Answer concisely" reads to the model as "answer briefly",
-   * and it stops as soon as it has something short enough.
-   */
   test("the rules ask for every part of the question", () => {
     const prompt = thread([], ["anything"])
     expect(prompt).toContain("Answer every part of the question")
@@ -69,11 +61,6 @@ describe("thread", () => {
   })
 })
 
-/**
- * The marker is the first sentence of every prompt. It is kept as a thing of its own
- * because a rule that changes shape is a rule nothing else can point at, and because it
- * is the line a test can read the model's opening instruction from.
- */
 describe("MARKER", () => {
   test("it is a whole sentence, so it reads as a rule rather than as a label", () => {
     expect(MARKER.endsWith(".")).toBe(true)

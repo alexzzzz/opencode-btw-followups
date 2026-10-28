@@ -14,11 +14,14 @@ needs one pass by hand in a terminal.
 
 - `src/index.ts` is the server entrypoint, and it registers nothing because the thread is a
   terminal concern.
-- `src/tui.tsx` is the terminal entrypoint: the command, the dialog, the queue behind it
-  and the badge in the prompt row.
-  `test/tui.test.ts` pins the order of the attributes on its markdown element, which is a
-  rule no other test can see.
-- `src/prompt.ts`, `src/layout.ts` and `src/state.ts` are pure, and `test/` covers them.
+- `src/tui.tsx` is the terminal entrypoint: the command, the badge, the window's lifetime and
+  the queue behind it.
+- `src/window.tsx` is the window itself: the dialog, the parts it is drawn from, and the
+  scroll and clear handling inside them. `test/tui.test.ts` pins the order of the attributes
+  on its markdown element, which is a rule no other test can see.
+- `src/syntax.ts` is the syntax style a fenced block in an answer is drawn with.
+- `src/prompt.ts`, `src/layout.ts`, `src/quick.ts`, `src/state.ts`, `src/footer.ts` and
+  `src/reveal.ts` are pure, and `test/` covers them.
 - `README.md` is what a user reads.
 - `docs/design.md` holds the measurement behind every rule below, plus the install
   evidence and the packaging rules. Read it before you change the dialog, the prompt, the
@@ -28,6 +31,11 @@ needs one pass by hand in a terminal.
 
 Treat every rule below as load-bearing. Each rule carries its reason in a clause, and the
 measurement behind the reason is in `docs/design.md`.
+
+Write no comments in `src/`. A name says what a thing does and the module is small enough to
+read whole, so a reason that cannot be seen in the code belongs in `docs/design.md` beside the
+measurement that produced it. A comment left in the code is a second copy of a fact, and the two
+copies drift.
 
 ### The thread
 
@@ -89,7 +97,16 @@ measurement behind the reason is in `docs/design.md`.
   renderable, so the layer is the path that works.
 - Measure the panel width from the dialog's own root box on `onSizeChange`, because the host
   chooses the panel width. The footer fits its hints to that width, longest wording first and
-  the next tier down when the panel is too narrow.
+  the next tier down when the panel is too narrow, and draws none rather than one cut short.
+  `src/footer.ts` owns that fitting, and `test/footer.test.ts` holds it in place.
+- Keep the quick prompts behind one marker in the header of the window, and let the list
+  of them float over the transcript rather than take rows from it, so nothing inside the
+  window moves when it opens and the reading position stays where it was. The list is
+  centred in the panel, because a list of prompts is read down the middle. `src/quick.ts`
+  owns the prompts and the marker, and `test/quick.test.ts` holds that in place.
+- Ask a quick prompt the way a typed question is asked, and leave the composer alone, so
+  that a click never throws away what the reader typed. The click is a mouse up and the
+  hover lightens the label, the way the host lightens its own clickable labels.
 - Name `flexDirection` on every box with more than one child, since a box lays its children in
   a column otherwise.
 - Name the style and the colour before the content on the answer's markdown element, because the

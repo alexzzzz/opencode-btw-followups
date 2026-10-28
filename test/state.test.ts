@@ -5,20 +5,20 @@ import {
   change,
   cleared,
   forget,
-  movedSince,
-  movedUnder,
+  gapBelow,
+  movedSinceLast,
+  showsBadge,
   stateOf,
-  waiting,
   type Sides,
 } from "../src/state.ts"
 
 const a = "ses_a"
 const b = "ses_b"
+
 const turn = (question: string) => ({ question, answer: `${question} answered` })
-// A thread as it travels through state: each turn with the count of the session it was
-// answered against. Only the count matters for the divider, so the helper keeps the
-// turn text out of the way.
-const lined = (marks: readonly number[]) => marks.map((mark, i) => ({ turn: turn(`t${i}`), mark }))
+
+const lined = (spokenAts: readonly number[]) =>
+  spokenAts.map((spokenAt, i) => ({ turn: turn(`t${i}`), spokenAt }))
 
 describe("stateOf", () => {
   test("a session nothing has been asked in reads as empty rather than as missing", () => {
@@ -34,22 +34,17 @@ describe("stateOf", () => {
 
   test("each session reads back what was written to it", () => {
     let sides: Sides = new Map()
-    sides = change(sides, a, { turns: [{ turn: turn("first"), mark: 1 }] })
-    expect(stateOf(sides, a).turns).toEqual([{ turn: turn("first"), mark: 1 }])
+    sides = change(sides, a, { turns: [{ turn: turn("first"), spokenAt: 1 }] })
+    expect(stateOf(sides, a).turns).toEqual([{ turn: turn("first"), spokenAt: 1 }])
     expect(stateOf(sides, b).turns).toEqual([])
   })
 })
 
-/**
- * This is the whole point of the module. A thread resends its earlier turns with every
- * question, so a turn kept beside another session's is a turn the model reads as
- * something said about a conversation it is not being asked about.
- */
 describe("change", () => {
   test("one session's thread does not reach another's", () => {
     let sides: Sides = new Map()
-    sides = change(sides, a, { turns: [{ turn: turn("about a"), mark: 1 }] })
-    sides = change(sides, b, { turns: [{ turn: turn("about b"), mark: 2 }] })
+    sides = change(sides, a, { turns: [{ turn: turn("about a"), spokenAt: 1 }] })
+    sides = change(sides, b, { turns: [{ turn: turn("about b"), spokenAt: 2 }] })
 
     expect(stateOf(sides, a).turns.map((item) => item.turn.question)).toEqual(["about a"])
     expect(stateOf(sides, b).turns.map((item) => item.turn.question)).toEqual(["about b"])
@@ -70,20 +65,13 @@ describe("change", () => {
     expect(stateOf(sides, a).pending).toEqual(["queued"])
   })
 
-  /**
-   * The dialog reads the state through getters holding the map they were read from, so
-   * a map changed in place would leave it drawing turns that are no longer there.
-   */
   test("the state it is given is left alone", () => {
     const before: Sides = new Map()
-    const after = change(before, a, { turns: [{ turn: turn("first"), mark: 1 }] })
+    const after = change(before, a, { turns: [{ turn: turn("first"), spokenAt: 1 }] })
 
     expect(before.size).toBe(0)
     expect(after).not.toBe(before)
     expect(stateOf(after, a).turns).toHaveLength(1)
-    // A session nothing has been asked in still reads as the one shared empty state, so
-    // a dialog drawing a thread that has not changed is handed the same array as before
-    // rather than a new one on every read.
     expect(stateOf(after, b)).toBe(EMPTY)
   })
 
@@ -98,7 +86,7 @@ describe("change", () => {
 
   test("the fields it is not given are kept", () => {
     let sides: Sides = new Map()
-    sides = change(sides, a, { turns: [{ turn: turn("first"), mark: 1 }], draft: "not asked yet" })
+    sides = change(sides, a, { turns: [{ turn: turn("first"), spokenAt: 1 }], draft: "not asked yet" })
     sides = change(sides, a, { pending: ["second"] })
 
     expect(stateOf(sides, a).turns).toHaveLength(1)
@@ -113,15 +101,11 @@ describe("change", () => {
   })
 })
 
-/**
- * A thread does not outlive the session it belongs to. A deleted session cannot be
- * opened again, so nobody will ever read what was kept for it.
- */
 describe("forget", () => {
   test("the session is gone and the others are not", () => {
     let sides: Sides = new Map()
-    sides = change(sides, a, { turns: [{ turn: turn("about a"), mark: 1 }] })
-    sides = change(sides, b, { turns: [{ turn: turn("about b"), mark: 2 }] })
+    sides = change(sides, a, { turns: [{ turn: turn("about a"), spokenAt: 1 }] })
+    sides = change(sides, b, { turns: [{ turn: turn("about b"), spokenAt: 2 }] })
     const after = forget(sides, a)
 
     expect(after.has(a)).toBe(false)
@@ -135,15 +119,10 @@ describe("forget", () => {
   })
 })
 
-/**
- * A turn is stored with how much of the session had been said by then, and the line in
- * the transcript is read off those two numbers. The turn and the count go in together,
- * because a turn without its count cannot be told from one asked at another moment.
- */
 describe("answered", () => {
   test("the turn and the count it was answered against are stored together", () => {
     const sides = answered(new Map(), a, turn("first"), 12)
-    expect(stateOf(sides, a).turns).toEqual([{ turn: turn("first"), mark: 12 }])
+    expect(stateOf(sides, a).turns).toEqual([{ turn: turn("first"), spokenAt: 12 }])
   })
 
   test("a second turn adds a second count rather than replacing the first", () => {
@@ -152,7 +131,7 @@ describe("answered", () => {
     sides = answered(sides, a, turn("second"), 14)
 
     expect(stateOf(sides, a).turns.map((item) => item.turn.question)).toEqual(["first", "second"])
-    expect(stateOf(sides, a).turns.map((item) => item.mark)).toEqual([12, 14])
+    expect(stateOf(sides, a).turns.map((item) => item.spokenAt)).toEqual([12, 14])
   })
 
   test("the queue and the request in flight are not touched by a turn", () => {
@@ -164,11 +143,6 @@ describe("answered", () => {
   })
 })
 
-/**
- * A cleared thread is the reader asking for a fresh start: the next question resends no
- * earlier turns. Everything the question does not carry is left alone, because the reader
- * asked to drop the history and not the work in progress.
- */
 describe("cleared", () => {
   test("no turn is left for the next question to resend", () => {
     let sides: Sides = new Map()
@@ -215,8 +189,8 @@ describe("cleared", () => {
     sides = cleared(sides, a)
     sides = answered(sides, a, turn("second"), 4)
 
-    expect(stateOf(sides, a).turns).toEqual([{ turn: turn("second"), mark: 4 }])
-    expect(movedSince(stateOf(sides, a).turns, 4)).toBe(false)
+    expect(stateOf(sides, a).turns).toEqual([{ turn: turn("second"), spokenAt: 4 }])
+    expect(movedSinceLast(stateOf(sides, a).turns, 4)).toBe(false)
   })
 
   test("the state it is given is left alone", () => {
@@ -228,79 +202,66 @@ describe("cleared", () => {
   })
 })
 
-/**
- * This is the rule the line in the window is drawn from: two answers separated by
- * nothing but a side question are about the same moment of the conversation, and two
- * with a request or an answer in between are not.
- */
-describe("movedUnder", () => {
+describe("gapBelow", () => {
   test("nothing between two turns means no line", () => {
-    expect(movedUnder(lined([12, 12]), 0, false)).toBe(false)
+    expect(gapBelow(lined([12, 12]), 0, false)).toBe(false)
   })
 
   test("something said between two turns means a line", () => {
-    expect(movedUnder(lined([12, 14]), 0, false)).toBe(true)
+    expect(gapBelow(lined([12, 14]), 0, false)).toBe(true)
   })
 
   test("no line above the first turn, whatever the count", () => {
-    expect(movedUnder(lined([40]), 0, false)).toBe(false)
-    expect(movedUnder(lined([]), 0, false)).toBe(false)
+    expect(gapBelow(lined([40]), 0, false)).toBe(false)
+    expect(gapBelow(lined([]), 0, false)).toBe(false)
   })
 
   test("every turn after a gap carries its own line", () => {
-    const marks = [10, 10, 12, 12, 15]
-    const turns = lined(marks)
-    expect(marks.map((_, index) => movedUnder(turns, index, false))).toEqual([false, true, false, true, false])
+    const spokenAts = [10, 10, 12, 12, 15]
+    const turns = lined(spokenAts)
+    expect(spokenAts.map((_, index) => gapBelow(turns, index, false))).toEqual([
+      false, true, false, true, false,
+    ])
   })
 
   test("a thread whose counts are unknown draws no line rather than one everywhere", () => {
-    expect(movedUnder(lined([12, undefined as unknown as number]), 0, false)).toBe(false)
-    expect(movedUnder(lined([12]), 1, false)).toBe(false)
+    expect(gapBelow(lined([12, undefined as unknown as number]), 0, false)).toBe(false)
+    expect(gapBelow(lined([12]), 1, false)).toBe(false)
   })
 
   test("a turn the session moved on from carries the line", () => {
     const turns = lined([10, 12, 12])
-    expect(turns.map((_, index) => movedUnder(turns, index, false))).toEqual([true, false, false])
+    expect(turns.map((_, index) => gapBelow(turns, index, false))).toEqual([true, false, false])
   })
 
   test("the newest answer takes the line from the session as it stands", () => {
-    expect(movedUnder(lined([10, 10]), 1, true)).toBe(true)
-    expect(movedUnder(lined([10, 10]), 1, false)).toBe(false)
+    expect(gapBelow(lined([10, 10]), 1, true)).toBe(true)
+    expect(gapBelow(lined([10, 10]), 1, false)).toBe(false)
   })
 
   test("a thread with no turns draws no line", () => {
-    expect(movedUnder([], 0, true)).toBe(false)
+    expect(gapBelow([], 0, true)).toBe(false)
   })
 })
 
-/**
- * The same rule read at the moment a question is asked rather than when its answer
- * lands. Without it the line between two stretches of conversation appears exactly when
- * the reader has stopped needing to know where the split is.
- */
-describe("movedSince", () => {
+describe("movedSinceLast", () => {
   test("nothing said since the last turn means no line", () => {
-    expect(movedSince(lined([12, 14]), 14)).toBe(false)
+    expect(movedSinceLast(lined([12, 14]), 14)).toBe(false)
   })
 
   test("something said since the last turn means a line", () => {
-    expect(movedSince(lined([12, 14]), 16)).toBe(true)
+    expect(movedSinceLast(lined([12, 14]), 16)).toBe(true)
   })
 
   test("a thread with no turns is never a line away from anything", () => {
-    expect(movedSince(lined([]), 40)).toBe(false)
+    expect(movedSinceLast(lined([]), 40)).toBe(false)
   })
 
   test("a count that cannot be read draws no line rather than one everywhere", () => {
-    expect(movedSince(lined([12, undefined as unknown as number]), 99)).toBe(false)
+    expect(movedSinceLast(lined([12, undefined as unknown as number]), 99)).toBe(false)
   })
 })
 
-/**
- * What a reader left behind rather than what the plugin did: a question typed and not
- * asked, and a position in the transcript. Both belong to the session they were typed
- * and read in, and both have to survive the window going down and coming back.
- */
 describe("what the reader left", () => {
   test("a session never asked in has neither a draft nor a place", () => {
     const state = stateOf(new Map(), a)
@@ -346,42 +307,37 @@ describe("what the reader left", () => {
   })
 })
 
-/**
- * The badge in the prompt row. It says a question is being answered in that session and
- * that the window for it is not up, so it is the one thing the reader can reach while
- * the answer is coming, and it is drawn in the row of the session it belongs to.
- */
-describe("waiting", () => {
+describe("showsBadge", () => {
   test("a question in flight with no window up is a badge", () => {
     const sides = change(new Map(), a, { active: "one" })
-    expect(waiting(sides, a, undefined)).toBe(true)
+    expect(showsBadge(sides, a, undefined)).toBe(true)
   })
 
   test("no question in flight is no badge", () => {
-    expect(waiting(new Map(), a, undefined)).toBe(false)
+    expect(showsBadge(new Map(), a, undefined)).toBe(false)
   })
 
   test("a queued question alone is no badge", () => {
     const sides = change(new Map(), a, { pending: ["one"] })
-    expect(waiting(sides, a, undefined)).toBe(false)
+    expect(showsBadge(sides, a, undefined)).toBe(false)
   })
 
   test("the window already up for that session is no badge", () => {
     const sides = change(new Map(), a, { active: "one" })
-    expect(waiting(sides, a, a)).toBe(false)
+    expect(showsBadge(sides, a, a)).toBe(false)
   })
 
   test("a window up for another session leaves the badge where it is", () => {
     const sides = change(new Map(), a, { active: "one" })
-    expect(waiting(sides, a, b)).toBe(true)
+    expect(showsBadge(sides, a, b)).toBe(true)
   })
 
   test("a row with no session of its own carries no badge", () => {
-    expect(waiting(new Map(), undefined, undefined)).toBe(false)
+    expect(showsBadge(new Map(), undefined, undefined)).toBe(false)
   })
 
   test("another session's question does not put a badge in this one's row", () => {
     const sides = change(new Map(), b, { active: "one" })
-    expect(waiting(sides, a, undefined)).toBe(false)
+    expect(showsBadge(sides, a, undefined)).toBe(false)
   })
 })
