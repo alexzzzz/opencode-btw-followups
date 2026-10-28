@@ -40,7 +40,6 @@ export default {
   setup(context: Plugin.Context) {
     const [sides, setSides] = createSignal<Sides>(new Map())
     const [windowSession, setWindowSession] = createSignal<string | undefined>(undefined)
-    const [listed, setListed] = createSignal(false)
     const [rows, setRows] = createSignal(context.renderer.terminalHeight)
     const syntax = createSyntaxStyle(context.theme, (context.renderer as any).nativeScene)
 
@@ -106,7 +105,6 @@ export default {
       lowering = true
       try {
         if (dropQueue) edit(sessionID, { pending: [] })
-        setListed(false)
         setWindowSession(undefined)
         context.ui.dialog.clear()
       } finally {
@@ -136,11 +134,8 @@ export default {
       )
     }
 
-    const showWindow = (sessionID: string, list = false) => {
-      if (windowSession() === sessionID) {
-        if (list) setListed(true)
-        return true
-      }
+    const showWindow = (sessionID: string) => {
+      if (windowSession() === sessionID) return true
       const height = rows()
       if (transcriptRows(height) === 0) {
         failed(
@@ -150,7 +145,6 @@ export default {
         return false
       }
       hideWindow()
-      setListed(list)
       setWindowSession(sessionID)
       context.ui.dialog.show(
         () => (
@@ -161,8 +155,6 @@ export default {
             limit={() => transcriptRows(rows())}
             rows={() => rows()}
             sessionMoved={() => movedSinceLast(view(sessionID).turns, spokenCount(sessionID))}
-            listed={() => listed()}
-            onListed={setListed}
             remember={(draft, place) => edit(sessionID, { draft, place })}
             ask={(question) => ask(sessionID, question)}
             clear={() => setSides((before) => cleared(before, sessionID))}
@@ -242,13 +234,13 @@ export default {
       void runQueue(sessionID)
     }
 
-    const openSession = (sessionID: string | undefined, question?: string, list = false) => {
+    const openSession = (sessionID: string | undefined, question?: string) => {
       if (!sessionID) {
         tell("Open a session first", "warning")
         return
       }
       edit(sessionID, { failure: undefined })
-      if (showWindow(sessionID, list) && question?.trim()) ask(sessionID, question)
+      if (showWindow(sessionID) && question?.trim()) ask(sessionID, question)
     }
 
     const stopWatchingDeletes = context.data.on("session.deleted", (event) => {
@@ -282,17 +274,23 @@ export default {
                 }
               },
             },
+          ],
+        }))
+        context.keymap.layer(() => ({
+          mode: "global",
+          commands: [
             {
-              id: "session.prompts",
+              id: "session.aside.open",
               bind: "ctrl+up",
-              title: "Quick prompts",
-              description: "The prepared side questions, opened in the btw window",
+              title: "Open the side thread",
+              description: "The follow-up window for this session, with nothing asked",
               group: "Session",
               palette: true,
+              enabled: () => windowSession() === undefined,
               run: (_input, event) => {
                 event?.preventDefault()
                 try {
-                  openSession(currentSession(), undefined, true)
+                  openSession(currentSession())
                 } catch (error) {
                   unexpected(currentSession(), error)
                 }

@@ -74,10 +74,10 @@ one of them asks it. `Down` at the end of the last line opens the same list and 
 is typed in the field alone. `Up` and `Down` move the pick, `Up` on the first prompt closes the
 list and puts the cursor back in the composer, and `Enter` asks the pick.
 
-The same list opens in the window on `Ctrl+Up` from the session prompt, without asking anything
-first: the window comes up with the list open, and a pick is asked as a side question in the
-thread. `Up` and `Down` move the pick, `Enter` asks it, `Up` on the first prompt or `Esc` closes
-the list, and the field keeps whatever was typed in it.
+`Ctrl+Up` in the session opens the window with nothing asked, and `Ctrl+Up` inside the window
+opens the same list, which the marker in the header toggles as well. `Up` and `Down` move the
+pick, `Enter` asks it, `Up` on the first prompt or `Esc` closes the list, and the field keeps
+whatever was typed in it.
 
 A thread belongs to the session it was asked in, and it lives in memory as long as the
 process runs.

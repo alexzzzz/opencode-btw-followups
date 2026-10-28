@@ -257,26 +257,29 @@ The evidence was taken against OpenCode 2.1.2 and `@opentui/core` 0.5.14.
 
 ### The list from the session prompt
 
-`Ctrl+Up` in the open session brings the window up with the list already open, so a reader can
-ask a prepared question without walking through the header marker first.
+`Ctrl+Up` in the session opens the window with nothing asked, and `Ctrl+Up` inside the window
+opens the list of prepared prompts.
 
 The evidence was taken against OpenCode 2.1.2, the published types of `@opencode/plugin/tui`,
-and a live press on the prompt.
+and a live press on the prompt and in the window.
 
 - The host publishes no text of its prompt. `PromptFooterInput` carries the session id, the mode
   and the details flag, and the slot map publishes `session.composer.top` with the session id
-  alone, so the trigger cannot be an empty field. It is a modifier combination instead.
+  alone, so a shortcut cannot test the field for emptiness. It is a modifier combination instead.
 - `Ctrl+Up` is free in the host's input table (`packages/tui/src/config/keybind.ts`) and reached
   the plugin on a live press, while the arrows keep moving the cursor.
-- The slot is a child of the composer's column and renders in the flow: the list took its rows
-  and the prompt moved down under it. The slot map has no overlay to move into either, since it
-  lists `app`, `home.footer`, `prompt.footer`, `session.composer.top`, `session.panel` and
-  `sidebar.*`, and `PanelPresentation` is `"panel"` or `"fullscreen"`.
-- A dialog is the one layer the host draws above the session, and the window is a dialog, so the
-  list opens inside it. The prompts are the window's own, so a pick is asked as a side question
-  and the conversation is left alone.
-- The position of the list lives in the plugin rather than in the dialog, so `Ctrl+Up` can open
-  the list on a window that is already up, and the window going down takes the list with it.
+- A slot above the composer renders in the flow and has no overlay to move into: the list took
+  its rows and the prompt moved down under it, which is not what a reader wants. The slot map
+  offers no overlay either, since it lists `app`, `home.footer`, `prompt.footer`,
+  `session.composer.top`, `session.panel` and `sidebar.*`, and `PanelPresentation` is `"panel"`
+  or `"fullscreen"`.
+- A dialog is the one layer the host draws above the session, so the list lives in the window,
+  which is a dialog. The prompts are the window's own, so a pick is asked as a side question and
+  the conversation is left alone.
+- The layer registry sorts the active layers by priority and then by order, so a `mode: "global"`
+  command registered at priority 10 sits ahead of the window's own layer at priority 1. The open
+  command is therefore enabled only while no window is up, which hands the key to the dialog and
+  keeps the list where the reader is looking.
 
 ## The markdown of an answer
 

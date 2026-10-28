@@ -165,12 +165,13 @@ copies drift.
 
 ### The session prompt
 
-- Open the quick prompts from the open session on `Ctrl+Up`, by opening the window for that
-  session with the list already open, because the window is a dialog and a dialog is the only
-  thing the host draws over a session. A slot above the composer renders in the flow: the list
-  takes rows and the transcript moves, which is what the first attempt did.
-- Keep the list's position in the plugin rather than in the dialog, so the command opens the
-  list on a window that is already up, and close it when the window goes down, so a list never
-  outlives the window it is drawn in.
-- Ask a pick in the side thread, the way a click on a prompt in the window asks it, because the
-  prompts are the window's own and a side question leaves the conversation alone.
+- Open the window from the open session on `Ctrl+Up`, because a dialog is the only layer the
+  host draws over a session and a plugin has no other way in that leaves the conversation alone.
+- Keep that command out of the window's way: it is disabled while a window is up, because the
+  registry sorts active layers by priority and then by order, and this layer would otherwise sit
+  ahead of the dialog's own.
+- Open the quick prompts on `Ctrl+Up` inside the window, the way the `btw` marker in the header
+  toggles them, because the key reaches the dialog before anything behind it and the composer
+  keeps the arrows, `Home` and `End` for the cursor.
+- Ask a pick in the side thread, which is what both a click and `Enter` do, because the prompts
+  are the window's own and a side question leaves the conversation alone.
