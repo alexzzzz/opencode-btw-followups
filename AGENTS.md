@@ -167,9 +167,8 @@ copies drift.
 
 - Open the window from the open session on `Ctrl+Up`, because a dialog is the only layer the
   host draws over a session and a plugin has no other way in that leaves the conversation alone.
-- Keep that command out of the window's way: it is disabled while a window is up, because the
-  registry sorts active layers by priority and then by order, and this layer would otherwise sit
-  ahead of the dialog's own.
+- Keep that command out of the window's way: it is disabled while a window is up, because a
+  global layer can otherwise take the key before the dialog's own layer sees it.
 - Open the quick prompts on `Ctrl+Up` inside the window, the way the `btw` marker in the header
   toggles them, because the key reaches the dialog before anything behind it and the composer
   keeps the arrows, `Home` and `End` for the cursor.

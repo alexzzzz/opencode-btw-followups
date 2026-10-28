@@ -260,16 +260,16 @@ The evidence was taken against OpenCode 2.1.2 and `@opentui/core` 0.5.14.
 `Ctrl+Up` in the session opens the window with nothing asked, and `Ctrl+Up` inside the window
 opens the list of prepared prompts.
 
-The evidence was taken against OpenCode 2.1.2, the published types of `@opencode/plugin/tui`,
+The evidence was taken against OpenCode 2.2.0, the published types of `@opencode/plugin/tui`,
 and a live press on the prompt and in the window.
 
 - The host publishes no text of its prompt. `PromptFooterInput` carries the session id, the mode
   and the details flag, and the slot map publishes `session.composer.top` with the session id
   alone, so a shortcut cannot test the field for emptiness. It is a modifier combination instead.
-- `Ctrl+Up` is free in the host's input table (`packages/tui/src/config/keybind.ts`) and reached
-  the plugin on a live press, while the arrows keep moving the cursor. `Ctrl+Down` appears in no
-  binding of the published host at all, so the way out mirrors the way in: the list goes down on
-  it first, and the window once the list is down.
+- Neither `Ctrl+Up` nor `Ctrl+Down` appears in the default keybind table of the installed host,
+  and `Ctrl+Up` reached the plugin on a live press while the arrows kept moving the cursor. The
+  way out therefore mirrors the way in: the list goes down on `Ctrl+Down` first, and the window
+  once the list is down.
 - A slot above the composer renders in the flow and has no overlay to move into: the list took
   its rows and the prompt moved down under it, which is not what a reader wants. The slot map
   offers no overlay either, since it lists `app`, `home.footer`, `prompt.footer`,
@@ -278,10 +278,11 @@ and a live press on the prompt and in the window.
 - A dialog is the one layer the host draws above the session, so the list lives in the window,
   which is a dialog. The prompts are the window's own, so a pick is asked as a side question and
   the conversation is left alone.
-- The layer registry sorts the active layers by priority and then by order, so a `mode: "global"`
-  command registered at priority 10 sits ahead of the window's own layer at priority 1. The open
-  command is therefore enabled only while no window is up, which hands the key to the dialog and
-  keeps the list where the reader is looking.
+- The session command is disabled while a window is up, because a global layer can otherwise take
+  the key before the dialog's own layer sees it: the registry reads priority and registration
+  order when two active layers bind the same key. The guard is safe under either reading, since
+  the key does nothing in the session while the window covers it, and it leaves `Ctrl+Up` inside
+  the window to the window.
 
 ## The markdown of an answer
 
