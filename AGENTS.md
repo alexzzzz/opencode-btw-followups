@@ -162,3 +162,15 @@ copies drift.
 - Mark the prompt row with a braille frame in `hue.interactive[200]` and then `btw`, in one
   `box flexShrink={0}` with no gap, so the row is the four cells `/btw` measures. Call that
   row the badge, and lighten it on hover the way the host lightens its own clickable labels.
+
+### The session prompt
+
+- Open the quick prompts from the open session on `Ctrl+Up`, by opening the window for that
+  session with the list already open, because the window is a dialog and a dialog is the only
+  thing the host draws over a session. A slot above the composer renders in the flow: the list
+  takes rows and the transcript moves, which is what the first attempt did.
+- Keep the list's position in the plugin rather than in the dialog, so the command opens the
+  list on a window that is already up, and close it when the window goes down, so a list never
+  outlives the window it is drawn in.
+- Ask a pick in the side thread, the way a click on a prompt in the window asks it, because the
+  prompts are the window's own and a side question leaves the conversation alone.

@@ -255,6 +255,29 @@ The evidence was taken against OpenCode 2.1.2 and `@opentui/core` 0.5.14.
 - The click is a mouse up, because that is the click OpenTUI sends. A click that ends a text
   selection is not a click on a prompt, and the host makes that guard for its own labels.
 
+### The list from the session prompt
+
+`Ctrl+Up` in the open session brings the window up with the list already open, so a reader can
+ask a prepared question without walking through the header marker first.
+
+The evidence was taken against OpenCode 2.1.2, the published types of `@opencode/plugin/tui`,
+and a live press on the prompt.
+
+- The host publishes no text of its prompt. `PromptFooterInput` carries the session id, the mode
+  and the details flag, and the slot map publishes `session.composer.top` with the session id
+  alone, so the trigger cannot be an empty field. It is a modifier combination instead.
+- `Ctrl+Up` is free in the host's input table (`packages/tui/src/config/keybind.ts`) and reached
+  the plugin on a live press, while the arrows keep moving the cursor.
+- The slot is a child of the composer's column and renders in the flow: the list took its rows
+  and the prompt moved down under it. The slot map has no overlay to move into either, since it
+  lists `app`, `home.footer`, `prompt.footer`, `session.composer.top`, `session.panel` and
+  `sidebar.*`, and `PanelPresentation` is `"panel"` or `"fullscreen"`.
+- A dialog is the one layer the host draws above the session, and the window is a dialog, so the
+  list opens inside it. The prompts are the window's own, so a pick is asked as a side question
+  and the conversation is left alone.
+- The position of the list lives in the plugin rather than in the dialog, so `Ctrl+Up` can open
+  the list on a window that is already up, and the window going down takes the list with it.
+
 ## The markdown of an answer
 
 The answer is drawn by the host's own markdown renderer, which takes the content and the

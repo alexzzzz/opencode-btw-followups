@@ -460,6 +460,8 @@ export function ThreadDialog(props: {
   readonly limit: () => number
   readonly rows: () => number
   readonly sessionMoved: () => boolean
+  readonly listed: () => boolean
+  readonly onListed: (open: boolean) => void
   readonly remember: (draft: string, place: Reading | undefined) => void
   readonly ask: (question: string) => void
   readonly clear: () => void
@@ -480,7 +482,6 @@ export function ThreadDialog(props: {
   const frame = useSpinnerFrame(() => Boolean(props.state().active))
   const [width, setWidth] = createSignal(0)
   const [height, setHeight] = createSignal(0)
-  const [listed, setListed] = createSignal(false)
   const [chosen, setChosen] = createSignal(0)
   const [browse, setBrowse] = createSignal<Browse>(NOT_BROWSING)
 
@@ -606,7 +607,7 @@ export function ThreadDialog(props: {
     if (direction === 1) {
       if (box.cursorOffset >= box.plainText.length) {
         setChosen(0)
-        setListed(true)
+        props.onListed(true)
         return
       }
       box.cursorOffset = box.plainText.length
@@ -652,7 +653,7 @@ export function ThreadDialog(props: {
         bind: "delete",
         title: "Clear the side thread",
         group: "Dialog",
-        enabled: () => !listed(),
+        enabled: () => !props.listed(),
         run: (_input: unknown, event?: KeyEvent) => {
           if ((field?.plainText.length ?? 0) > 0) return false
           event?.preventDefault()
@@ -665,7 +666,7 @@ export function ThreadDialog(props: {
         bind: "up",
         title: "Earlier question",
         group: "Dialog",
-        enabled: () => !listed(),
+        enabled: () => !props.listed(),
         run: (_input: unknown, event?: KeyEvent) => {
           event?.preventDefault()
           walk(-1)
@@ -676,7 +677,7 @@ export function ThreadDialog(props: {
         bind: "down",
         title: "Later question",
         group: "Dialog",
-        enabled: () => !listed(),
+        enabled: () => !props.listed(),
         run: (_input: unknown, event?: KeyEvent) => {
           event?.preventDefault()
           walk(1)
@@ -687,11 +688,11 @@ export function ThreadDialog(props: {
         bind: "up",
         title: "Previous quick prompt",
         group: "Dialog",
-        enabled: () => listed(),
+        enabled: () => props.listed(),
         run: (_input: unknown, event?: KeyEvent) => {
           event?.preventDefault()
           if (chosen() === 0) {
-            setListed(false)
+            props.onListed(false)
             field?.focus()
             return
           }
@@ -703,7 +704,7 @@ export function ThreadDialog(props: {
         bind: "down",
         title: "Next quick prompt",
         group: "Dialog",
-        enabled: () => listed(),
+        enabled: () => props.listed(),
         run: (_input: unknown, event?: KeyEvent) => {
           event?.preventDefault()
           setChosen((index) => nextChoice(index, 1, QUICK_PROMPTS.length))
@@ -714,7 +715,7 @@ export function ThreadDialog(props: {
         bind: "enter",
         title: "Ask the picked quick prompt",
         group: "Dialog",
-        enabled: () => listed(),
+        enabled: () => props.listed(),
         run: (_input: unknown, event?: KeyEvent) => {
           event?.preventDefault()
           const question = QUICK_PROMPTS[chosen()]
@@ -726,10 +727,10 @@ export function ThreadDialog(props: {
         bind: "escape",
         title: "Close the prompt list",
         group: "Dialog",
-        enabled: () => listed(),
+        enabled: () => props.listed(),
         run: (_input: unknown, event?: KeyEvent) => {
           event?.preventDefault()
-          setListed(false)
+          props.onListed(false)
         },
       },
     ],
@@ -737,7 +738,7 @@ export function ThreadDialog(props: {
 
   const askQuick = (question: string) => {
     if (context.renderer.getSelection()?.getSelectedText()) return
-    setListed(false)
+    props.onListed(false)
     props.ask(question)
   }
 
@@ -747,11 +748,11 @@ export function ThreadDialog(props: {
   const rightText = () => belowLabel(newAnswers(), below())
   const confirmText = () => clearLabel(turnCount(), width())
   const hintTier = () => keyHints(width(), copyText(), rightText())
-  const header = () => headerRow(width(), countText(), above(), QUICK_PROMPTS.length, listed())
+  const header = () => headerRow(width(), countText(), above(), QUICK_PROMPTS.length, props.listed())
   const listRoom = () => Math.max(0, height() - 2)
   const cardRows = () => quickCardRows(QUICK_PROMPTS.length)
   const transcriptCap = () =>
-    listed()
+    props.listed()
       ? listTranscriptRows(props.rows(), field?.height ?? 1, cardRows())
       : props.limit()
 
@@ -783,12 +784,12 @@ export function ThreadDialog(props: {
         row={header}
         onToggle={() => {
           setChosen(0)
-          setListed(!listed())
+          props.onListed(!props.listed())
         }}
         onClose={props.close}
       />
 
-      <Show when={listed()}>
+      <Show when={props.listed()}>
         <QuickList
           theme={theme}
           width={width()}
@@ -804,7 +805,7 @@ export function ThreadDialog(props: {
           scroller = element
         }}
         maxHeight={transcriptCap()}
-        minHeight={listed() ? Math.min(cardRows(), transcriptCap()) : 0}
+        minHeight={props.listed() ? Math.min(cardRows(), transcriptCap()) : 0}
         stickyScroll
         stickyStart="bottom"
         contentOptions={{ minHeight: 0 }}
