@@ -5,6 +5,7 @@ import {
   change,
   cleared,
   forget,
+  markRevealed,
   movedSinceLast,
   showsBadge,
   stateOf,
@@ -152,6 +153,7 @@ export default {
             limit={() => transcriptRows(rows())}
             rows={() => rows()}
             sessionMoved={() => movedSinceLast(view(sessionID).turns, spokenCount(sessionID))}
+            markRevealed={() => setSides((before) => markRevealed(before, sessionID))}
             remember={(draft, place) => edit(sessionID, { draft, place })}
             ask={(question) => ask(sessionID, question)}
             clear={() => setSides((before) => cleared(before, sessionID))}
@@ -197,9 +199,7 @@ export default {
           failed(sessionID, EMPTY_ANSWER, "No answer came back", question)
           return "empty"
         }
-        setSides((before) =>
-          answered(before, sessionID, { question, answer }, spokenCount(sessionID), windowSession() === sessionID),
-        )
+        setSides((before) => answered(before, sessionID, { question, answer }, spokenCount(sessionID)))
 
         if (currentSession() === sessionID) showWindow(sessionID)
         return "answered"

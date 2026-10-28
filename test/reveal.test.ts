@@ -33,13 +33,13 @@ describe("firstChunk", () => {
 })
 
 describe("firstShown", () => {
-  test("an answer the reader watched starts at the first chunk", () => {
-    expect(firstShown(true, 900)).toBe(firstChunk(900))
+  test("an answer nothing has played yet starts at the first chunk", () => {
+    expect(firstShown(false, 900)).toBe(firstChunk(900))
   })
 
-  test("an answer that landed with the window down is already whole", () => {
-    expect(firstShown(false, 900)).toBe(900)
-    expect(firstShown(false, 0)).toBe(0)
+  test("an answer that was played once is whole when it comes back", () => {
+    expect(firstShown(true, 900)).toBe(900)
+    expect(firstShown(true, 0)).toBe(0)
   })
 })
 

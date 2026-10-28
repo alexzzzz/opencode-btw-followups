@@ -69,8 +69,15 @@ function useSpinnerFrame(running: () => boolean = () => true) {
   return frame
 }
 
-function useAnswerReveal(state: () => SideState) {
-  const [shown, setShown] = createSignal(Number.POSITIVE_INFINITY)
+function useAnswerReveal(state: () => SideState, markRevealed: () => void) {
+  const start = () => {
+    const last = state().turns.at(-1)
+    return last === undefined
+      ? Number.POSITIVE_INFINITY
+      : firstShown(last.revealed, last.turn.answer.length)
+  }
+
+  const [shown, setShown] = createSignal(start())
   let timer: ReturnType<typeof setInterval> | undefined
 
   const stop = () => {
@@ -86,16 +93,16 @@ function useAnswerReveal(state: () => SideState) {
         const last = state().turns.at(-1)
         if (last === undefined) return
         const answer = last.turn.answer
-        const first = firstShown(last.watched, answer.length)
+        const first = firstShown(last.revealed, answer.length)
         setShown(first)
         if (first >= answer.length) return
+        markRevealed()
         timer = setInterval(() => {
           const next = nextChunk(shown(), answer.length)
           setShown(next)
           if (next >= answer.length) stop()
         }, REVEAL_MS)
       },
-      { defer: true },
     ),
   )
 
@@ -462,6 +469,7 @@ export function ThreadDialog(props: {
   readonly limit: () => number
   readonly rows: () => number
   readonly sessionMoved: () => boolean
+  readonly markRevealed: () => void
   readonly remember: (draft: string, place: Reading | undefined) => void
   readonly ask: (question: string) => void
   readonly clear: () => void
@@ -478,7 +486,7 @@ export function ThreadDialog(props: {
   let panel: BoxRenderable | undefined
   let place = props.state().place
 
-  const reveal = useAnswerReveal(props.state)
+  const reveal = useAnswerReveal(props.state, props.markRevealed)
   const frame = useSpinnerFrame(() => Boolean(props.state().active))
   const [width, setWidth] = createSignal(0)
   const [height, setHeight] = createSignal(0)

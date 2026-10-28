@@ -78,10 +78,11 @@ copies drift.
   question that was asked is not un-asked by closing the view: the queue pauses while no window
   is up and goes on at the next open. A deleted session calls that request off.
 - Raise the window for an answer only when the reader is in the session it belongs to.
-- Write a new answer out only when the reader was at the window as it landed. An answer that
-  landed while the window was down is drawn whole, because the reader already missed the
-  arrival and a replay would spend the same second and a half twice. `watched` on the turn
-  carries this, and `firstShown` in `src/reveal.ts` turns it into a starting point.
+- Write out each new answer once, and only once. An answer that arrives while the window is
+  closed plays when the window opens, and an answer already played comes back whole, because a
+  second play spends the same second and a half on text the reader has seen. `revealed` on the
+  turn records the play, `firstShown` in `src/reveal.ts` decides where the text starts, and the
+  window marks the turn as it starts the timer.
 - Make the badge a handle on the window: a click on the `btw` badge in the prompt row
   opens the window for the session that row belongs to, because the badge is the only
   sign of a question the reader cannot see while it is being answered. Take the session

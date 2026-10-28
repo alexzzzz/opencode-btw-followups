@@ -15,7 +15,7 @@ export type Reading = {
 export type SideTurn = {
   readonly turn: Turn
   readonly spokenAt: number
-  readonly watched: boolean
+  readonly revealed: boolean
 }
 
 export type SideState = {
@@ -50,11 +50,19 @@ export const answered = (
   sessionID: string,
   turn: Turn,
   spokenAt: number,
-  watched: boolean,
 ): Sides =>
   change(sides, sessionID, {
-    turns: [...stateOf(sides, sessionID).turns, { turn, spokenAt, watched }],
+    turns: [...stateOf(sides, sessionID).turns, { turn, spokenAt, revealed: false }],
   })
+
+export const markRevealed = (sides: Sides, sessionID: string): Sides => {
+  const turns = stateOf(sides, sessionID).turns
+  const last = turns.at(-1)
+  if (last === undefined || last.revealed) return sides
+  return change(sides, sessionID, {
+    turns: [...turns.slice(0, -1), { ...last, revealed: true }],
+  })
+}
 
 export const cleared = (sides: Sides, sessionID: string): Sides =>
   change(sides, sessionID, { turns: [], failure: undefined })
