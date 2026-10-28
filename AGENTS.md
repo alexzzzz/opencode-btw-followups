@@ -25,7 +25,7 @@ copy is behind. A change the copy does not hold is a change the window never sho
   on its markdown element, which is a rule no other test can see.
 - `src/syntax.ts` is the syntax style a fenced block in an answer is drawn with.
 - `src/prompt.ts`, `src/layout.ts`, `src/quick.ts`, `src/state.ts`, `src/footer.ts`,
-  `src/header.ts` and `src/reveal.ts` are pure, and `test/` covers them.
+  `src/header.ts`, `src/keys.ts` and `src/reveal.ts` are pure, and `test/` covers them.
 - `README.md` is what a user reads.
 - `docs/design.md` holds the measurement behind every rule below, plus the install
   evidence and the packaging rules. Read it before you change the dialog, the prompt, the
@@ -74,8 +74,9 @@ copies drift.
 - One window serves every session and names the session it is up for. Running the command in
   another session takes the window down without ending anything, so the thread, the request in
   flight and the queue stay in their session.
-- Closing the window ends the window and the queue and lets a request in flight finish. A
-  deleted session calls that request off.
+- Closing the window ends the window alone and lets a request in flight finish, because a
+  question that was asked is not un-asked by closing the view: the queue pauses while no window
+  is up and goes on at the next open. A deleted session calls that request off.
 - Raise the window for an answer only when the reader is in the session it belongs to.
 - Make the badge a handle on the window: a click on the `btw` badge in the prompt row
   opens the window for the session that row belongs to, because the badge is the only
@@ -122,7 +123,9 @@ copies drift.
 - Measure the panel width from the dialog's own root box on `onSizeChange`, because the host
   chooses the panel width. The footer fits its hints to that width, longest wording first and
   the next tier down when the panel is too narrow, and draws none rather than one cut short.
-  `src/footer.ts` owns that fitting, and `test/footer.test.ts` holds it in place.
+  The tier a common panel gets names `ctrl+up/down`, because the keys are learned where they are
+  pressed and the wheel needs no teaching. `src/footer.ts` owns that fitting, and
+  `test/footer.test.ts` holds it in place.
 - Fit the header the same way, because a row wider than the panel wraps mid-word rather than
   clipping. The count goes first, then the notice of what is above, then the escape hint, and
   the quick marker shortens to `▸ 6 prompts` and then `▸ 6`. `src/header.ts` owns that
@@ -174,6 +177,8 @@ copies drift.
   keeps the arrows, `Home` and `End` for the cursor.
 - Mirror it on `Ctrl+Down`: the list goes down on that key, and the window goes down once the
   list is already down, because `Ctrl+Up` is the way in at both levels and the way out should
-  read the same. The host binds no `Ctrl+Down`, so the key is free.
+  read the same. The host binds no `Ctrl+Down`, so the key is free. `src/keys.ts` decides both
+  keys and whether the session command may open the window at all, and `test/keys.test.ts` holds
+  it in place.
 - Ask a pick in the side thread, which is what both a click and `Enter` do, because the prompts
   are the window's own and a side question leaves the conversation alone.

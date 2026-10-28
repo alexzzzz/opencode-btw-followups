@@ -14,14 +14,16 @@ const JUMPS: Hint = ["ctrl+home/end", " jump"]
 
 const CLEARS: Hint = ["delete", " clear thread"]
 
+const LIST: Hint = ["ctrl+up/down", " prompts"]
+
 const ASKS: Hint = ["enter", " asks"]
 
 const CLOSES: Hint = ["esc", " closes"]
 
 const TIERS: readonly (readonly Hint[])[] = [
-  [SCROLLS, SCROLLS_A_PAGE, JUMPS, CLEARS, ASKS, CLOSES],
-  [SCROLLS, SCROLLS_A_PAGE_SHORT, JUMPS, CLEARS],
-  [SCROLLS, SCROLLS_A_PAGE_SHORT, CLEARS],
+  [SCROLLS, SCROLLS_A_PAGE, JUMPS, LIST, CLEARS, ASKS, CLOSES],
+  [SCROLLS, SCROLLS_A_PAGE_SHORT, JUMPS, LIST, CLEARS],
+  [SCROLLS_A_PAGE_SHORT, LIST, CLEARS],
   [SCROLLS_A_PAGE_SHORT, CLEARS],
   [CLEARS],
 ]

@@ -11,6 +11,7 @@ import {
 } from "@opentui/core"
 import type { Plugin } from "@opencode/plugin/tui"
 import { usePlugin } from "@opencode/plugin/tui"
+import { ctrlDown, ctrlUp, type ListEffect } from "./keys.ts"
 import {
   belowLabel,
   clearLabel,
@@ -595,6 +596,20 @@ export function ThreadDialog(props: {
     return true
   }
 
+  const applyList = (effect: ListEffect) => {
+    if (effect === "close-window") {
+      props.close()
+      return
+    }
+    if (effect === "open") {
+      setChosen(0)
+      setListed(true)
+      return
+    }
+    setListed(false)
+    field?.focus()
+  }
+
   const walk = (direction: -1 | 1) => {
     const box = field
     if (!box) return
@@ -654,8 +669,7 @@ export function ThreadDialog(props: {
         group: "Dialog",
         run: (_input: unknown, event?: KeyEvent) => {
           event?.preventDefault()
-          setChosen(0)
-          setListed(!listed())
+          applyList(ctrlUp(listed()))
         },
       },
       {
@@ -665,12 +679,7 @@ export function ThreadDialog(props: {
         group: "Dialog",
         run: (_input: unknown, event?: KeyEvent) => {
           event?.preventDefault()
-          if (!listed()) {
-            props.close()
-            return
-          }
-          setListed(false)
-          field?.focus()
+          applyList(ctrlDown(listed()))
         },
       },
       {

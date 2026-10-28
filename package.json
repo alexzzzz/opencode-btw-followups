@@ -1,6 +1,6 @@
 {
   "name": "@alexzzzz/opencode-btw-followups",
-  "version": "0.1.4",
+  "version": "0.2.0",
   "description": "OpenCode plugin that replaces the built-in /btw with a side question dialog that keeps a thread of follow-up questions",
   "keywords": [
     "opencode",

@@ -96,6 +96,14 @@ describe("keyHints", () => {
     )
   })
 
+  test("a common panel teaches the key that opens the prompt list", () => {
+    expect(keyHints(PANEL_WIDTH, "copy thread", "").map(([key]) => key)).toContain("ctrl+up/down")
+  })
+
+  test("a narrow panel drops it rather than cutting it", () => {
+    expect(keyHints(60, "copy thread", "").map(([key]) => key)).not.toContain("ctrl+up/down")
+  })
+
   test("a phone-width panel keeps only the key that clears the thread", () => {
     expect(keyHints(51, "nothing to copy", "").map(([key]) => key)).toEqual(["delete"])
   })

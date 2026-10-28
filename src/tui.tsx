@@ -12,6 +12,7 @@ import {
   type Sides,
 } from "./state.ts"
 import { remembered } from "./history.ts"
+import { opensFromSession } from "./keys.ts"
 import { createSyntaxStyle } from "./syntax.ts"
 import { transcriptRows } from "./layout.ts"
 import { thread } from "./prompt.ts"
@@ -99,21 +100,17 @@ export default {
 
     let lowering = false
 
-    const lower = (dropQueue: boolean) => {
+    const lowerWindow = () => {
       const sessionID = windowSession()
       if (lowering || sessionID === undefined) return
       lowering = true
       try {
-        if (dropQueue) edit(sessionID, { pending: [] })
         setWindowSession(undefined)
         context.ui.dialog.clear()
       } finally {
         lowering = false
       }
     }
-
-    const hideWindow = () => lower(false)
-    const closeWindow = () => lower(true)
 
     const copy = () => {
       const sessionID = windowSession()
@@ -144,7 +141,7 @@ export default {
         )
         return false
       }
-      hideWindow()
+      lowerWindow()
       setWindowSession(sessionID)
       context.ui.dialog.show(
         () => (
@@ -158,13 +155,14 @@ export default {
             remember={(draft, place) => edit(sessionID, { draft, place })}
             ask={(question) => ask(sessionID, question)}
             clear={() => setSides((before) => cleared(before, sessionID))}
-            close={closeWindow}
+            close={lowerWindow}
             copy={copy}
           />
         ),
-        closeWindow,
+        lowerWindow,
       )
       context.ui.dialog.set({ size: "large", centered: true })
+      if (view(sessionID).pending.length > 0) drain(sessionID)
       return true
     }
 
@@ -245,7 +243,7 @@ export default {
 
     const stopWatchingDeletes = context.data.on("session.deleted", (event) => {
       const sessionID = event.data.sessionID
-      if (windowSession() === sessionID) hideWindow()
+      if (windowSession() === sessionID) lowerWindow()
       inFlight.get(sessionID)?.abort()
       inFlight.delete(sessionID)
       setSides((now) => forget(now, sessionID))
@@ -286,7 +284,7 @@ export default {
               description: "The follow-up window for this session, with nothing asked",
               group: "Session",
               palette: true,
-              enabled: () => windowSession() === undefined,
+              enabled: () => opensFromSession(currentSession(), windowSession()),
               run: (_input, event) => {
                 event?.preventDefault()
                 try {
@@ -319,7 +317,7 @@ export default {
     })
 
     return () => {
-      hideWindow()
+      lowerWindow()
       for (const call of inFlight.values()) call.abort()
       inFlight.clear()
       stopWatchingDeletes()

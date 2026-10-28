@@ -52,7 +52,9 @@ left.
 
 `PageUp`, `PageDown`, `Ctrl+Home` and `Ctrl+End` move the transcript, `Delete` clears the
 thread, and `Esc` closes the window and keeps the thread. A click on `copy thread` copies the
-whole thread through the terminal clipboard.
+whole thread through the terminal clipboard. Closing the window leaves a question that was
+asked and is still waiting to go out in the session, and it goes out the next time the window
+opens.
 
 The composer takes the keys the host's own prompt takes: `Home` and `End` for the ends of the
 text, the arrows for the cursor, and the word and selection keys of the host's input table.

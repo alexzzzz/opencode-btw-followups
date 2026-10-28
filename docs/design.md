@@ -7,9 +7,10 @@ shaped that way. `README.md` carries what a user sees.
 
 ## What the host does not expose
 
-Checked against the published types of `@opencode/plugin` and `@opentui/core`, version 2.0.22
-and 0.5.17, and against the loader in the host's own plugin source. Do not design around
-these as if they might appear.
+Checked against the published types of `@opencode/plugin` and `@opentui/core` that `package.json`
+pins, and against the loader in the host's own plugin source. Do not design around these as if
+they might appear. The versions in use move without this file: `bun pm ls` prints them, and the
+evidence below was gathered on `@opencode/plugin` 2.0.22 and `@opentui/core` 0.5.17.
 
 - `session.generate` writes nothing back into the session. There is no server-side thread
   to read or write, so the thread travels inside the prompt, and a side question never moves
@@ -347,6 +348,11 @@ its room does not clip, it overlaps: a phone-sized terminal gave the dialog abou
 which leaves the footer twenty-six beside `nothing to copy`, and the two-key tier needs
 forty-one. The screenshot that showed it read `nothing to page up/ scrolldele clear t`. That arithmetic is in `src/footer.ts` and `test/footer.test.ts` holds it.
 
+The tier that fits a common panel names `ctrl+up/down prompts`, because a key that opens and
+closes the list is learned where it is pressed, while the wheel is a thing the reader already
+knows. It sits in place of the wheel hint for that reason, and a panel too narrow for the tier
+drops it rather than cutting it.
+
 A reader parked above the newest answer is told what arrived below and offered the way down,
 because `stickyScroll` follows new content only from the bottom and the transcript deliberately
 does not move for them. Reading by hand clears the notice, so the footer never nags a reader who
@@ -361,6 +367,11 @@ question.
 The loop drains the queue once more on its way out, because a question asked in the tick between
 the last answer and the end of the loop finds the session busy, lands in the queue, and would
 otherwise be sent by nothing.
+
+The queue outlives the window. A close ends the view alone, because a question that was asked is
+not un-asked by closing the view, and the loop that is paused while no window is up picks the
+queue back up when the window opens again. The header counts what waits, so nothing leaves
+silently with the frame.
 
 An empty answer stops the queue with the question in the failure, and an error stops it too:
 answering more questions against a gap in the thread is worse than stopping. A deleted session
