@@ -39,7 +39,7 @@ const FRAME_MS = 90
 
 const DASH = "┈"
 
-const MOVED_LABEL = " the conversation carried on "
+const MOVED_LABEL = " the session behind btw carried on "
 
 const CONFIRM_MS = 4000
 
