@@ -334,10 +334,13 @@ when it landed or opened afterwards, and the plugin remembers which answers it h
 window closed mid-way and opened again draws the rest at once instead of starting the second and
 a half over. A turn that was played before is never played again.
 
-That memory is a `WeakSet` of turns beside the thread in `src/tui.tsx`, and not a field of the
-side state, because the dialog is rebuilt from that state: a write into it while the reveal runs
-re-creates the window, which reads the answer as already played and draws it whole, and the play
-never appears at all. A set that no signal reads costs the window a rebuild with no effect.
+The trap is that the effect behind the reveal runs on every write to the side state, not only
+when the turn count changes. An answer lands as two writes, the turn itself and the spinner
+going out, and a probe put them two milliseconds apart: the first started the play at fourteen
+characters and the second, reading the answer as already played, drew all twelve hundred at once.
+The window therefore remembers the turn it is playing and returns early for later runs over the
+same one. That memory is the window's own; the mark of a played answer is a `WeakSet` of turns
+beside the thread in `src/tui.tsx`, because a fresh window has to know what an earlier one played.
 
 The reveal is also what keeps the markdown of a finished answer right: a later write rebuilds
 the list block, and the block picks the syntax style up on the way, which is the case described

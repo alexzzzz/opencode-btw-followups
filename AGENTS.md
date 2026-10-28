@@ -78,12 +78,14 @@ copies drift.
   question that was asked is not un-asked by closing the view: the queue pauses while no window
   is up and goes on at the next open. A deleted session calls that request off.
 - Raise the window for an answer only when the reader is in the session it belongs to.
-- Write out each new answer once, and only once. An answer that arrives while the window is
-  closed plays when the window opens, and an answer already played comes back whole, because a
-  second play spends the same second and a half on text the reader has seen. `firstShown` in
-  `src/reveal.ts` decides where the text starts, and the mark of a played answer lives in a
-  `WeakSet` beside the thread in `src/tui.tsx`, never in the side state: a state write during
-  the reveal rebuilds the dialog, and the play then never shows at all.
+- Write out each new answer once, and only once. The computation behind the reveal runs on every
+  write to the side state, not only when a turn is added, and an answer lands as two writes a
+  couple of milliseconds apart, so the window remembers the turn it is playing and ignores the
+  later runs for that turn; without that, the first write starts the play and the second draws
+  the answer whole. The mark of a played answer lives in a `WeakSet` beside the thread in
+  `src/tui.tsx`, so a window opened later draws a played answer whole while an answer that
+  arrived behind a closed window still plays when the window opens. `firstShown` in
+  `src/reveal.ts` decides where the text starts.
 - Make the badge a handle on the window: a click on the `btw` badge in the prompt row
   opens the window for the session that row belongs to, because the badge is the only
   sign of a question the reader cannot see while it is being answered. Take the session

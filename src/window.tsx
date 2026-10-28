@@ -83,32 +83,35 @@ function useAnswerReveal(
 
   const [shown, setShown] = createSignal(start())
   let timer: ReturnType<typeof setInterval> | undefined
+  let playing: SideTurn | undefined
 
   const stop = () => {
     clearInterval(timer)
     timer = undefined
   }
 
-  createEffect(
-    on(
-      () => state().turns.length,
-      () => {
-        stop()
-        const last = state().turns.at(-1)
-        if (last === undefined) return
-        const answer = last.turn.answer
-        const first = firstShown(played(last), answer.length)
-        setShown(first)
-        if (first >= answer.length) return
-        markPlayed(last)
-        timer = setInterval(() => {
-          const next = nextChunk(shown(), answer.length)
-          setShown(next)
-          if (next >= answer.length) stop()
-        }, REVEAL_MS)
-      },
-    ),
-  )
+  const play = () => {
+    const last = state().turns.at(-1)
+    if (last === undefined) {
+      stop()
+      return
+    }
+    if (playing === last) return
+    stop()
+    playing = last
+    const answer = last.turn.answer
+    const first = firstShown(played(last), answer.length)
+    setShown(first)
+    if (first >= answer.length) return
+    markPlayed(last)
+    timer = setInterval(() => {
+      const next = nextChunk(shown(), answer.length)
+      setShown(next)
+      if (next >= answer.length) stop()
+    }, REVEAL_MS)
+  }
+
+  createEffect(on(() => state().turns.length, play))
 
   onCleanup(stop)
 
