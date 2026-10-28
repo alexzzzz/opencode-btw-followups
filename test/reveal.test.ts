@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { firstChunk, nextChunk, revealStep, shownText } from "../src/reveal.ts"
+import { firstChunk, firstShown, nextChunk, revealStep, shownText } from "../src/reveal.ts"
 
 describe("revealStep", () => {
   test("a short answer is revealed in one chunk", () => {
@@ -29,6 +29,17 @@ describe("firstChunk", () => {
 
   test("an empty answer shows nothing", () => {
     expect(firstChunk(0)).toBe(0)
+  })
+})
+
+describe("firstShown", () => {
+  test("an answer the reader watched starts at the first chunk", () => {
+    expect(firstShown(true, 900)).toBe(firstChunk(900))
+  })
+
+  test("an answer that landed with the window down is already whole", () => {
+    expect(firstShown(false, 900)).toBe(900)
+    expect(firstShown(false, 0)).toBe(0)
   })
 })
 

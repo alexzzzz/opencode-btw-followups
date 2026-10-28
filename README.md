@@ -46,7 +46,7 @@ plugin, so the path has to come after the removal.
 
 Run `/btw` on its own to open the window and type the question into the composer. An answer
 appears as it is written, and a thread that already holds answers is reopened as it was
-left.
+left. An answer that lands while the window is closed is there in full when it comes back.
 
 ![The /btw window with two questions, two answers and the composer](docs/btw-window.png)
 

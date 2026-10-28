@@ -15,6 +15,7 @@ export type Reading = {
 export type SideTurn = {
   readonly turn: Turn
   readonly spokenAt: number
+  readonly watched: boolean
 }
 
 export type SideState = {
@@ -44,8 +45,16 @@ export const stateOf = (sides: Sides, sessionID: string): SideState => sides.get
 export const change = (sides: Sides, sessionID: string, changes: Partial<SideState>): Sides =>
   new Map(sides).set(sessionID, { ...stateOf(sides, sessionID), ...changes })
 
-export const answered = (sides: Sides, sessionID: string, turn: Turn, spokenAt: number): Sides =>
-  change(sides, sessionID, { turns: [...stateOf(sides, sessionID).turns, { turn, spokenAt }] })
+export const answered = (
+  sides: Sides,
+  sessionID: string,
+  turn: Turn,
+  spokenAt: number,
+  watched: boolean,
+): Sides =>
+  change(sides, sessionID, {
+    turns: [...stateOf(sides, sessionID).turns, { turn, spokenAt, watched }],
+  })
 
 export const cleared = (sides: Sides, sessionID: string): Sides =>
   change(sides, sessionID, { turns: [], failure: undefined })

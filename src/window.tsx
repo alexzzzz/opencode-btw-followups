@@ -26,7 +26,7 @@ import { COMPOSER_ROWS, listTranscriptRows, RAIL } from "./layout.ts"
 import { HEADER_GAP, HEADER_PAD, HEADER_TITLE, CLOSE_LABEL, headerRow, type HeaderRow } from "./header.ts"
 import { NOT_BROWSING, recalled, type Browse } from "./history.ts"
 import { QUICK_PROMPTS, nextChoice, quickCardDress, quickCardRows, quickCardWidth } from "./quick.ts"
-import { firstChunk, nextChunk, REVEAL_MS, shownText } from "./reveal.ts"
+import { firstShown, nextChunk, REVEAL_MS, shownText } from "./reveal.ts"
 import { gapBelow, type Failure, type Reading, type SideState } from "./state.ts"
 
 type Theme = Plugin.Context["theme"]
@@ -83,9 +83,10 @@ function useAnswerReveal(state: () => SideState) {
       () => state().turns.length,
       () => {
         stop()
-        const answer = state().turns.at(-1)?.turn.answer
-        if (answer === undefined) return
-        const first = firstChunk(answer.length)
+        const last = state().turns.at(-1)
+        if (last === undefined) return
+        const answer = last.turn.answer
+        const first = firstShown(last.watched, answer.length)
         setShown(first)
         if (first >= answer.length) return
         timer = setInterval(() => {

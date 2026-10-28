@@ -6,6 +6,9 @@ export const revealStep = (length: number) => Math.max(1, Math.ceil(length / TIC
 
 export const firstChunk = (length: number) => Math.min(revealStep(length), length)
 
+export const firstShown = (watched: boolean, length: number) =>
+  watched ? firstChunk(length) : length
+
 export const nextChunk = (shown: number, length: number) =>
   Math.min(shown + revealStep(length), length)
 

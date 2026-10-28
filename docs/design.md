@@ -329,6 +329,12 @@ Only the newest turn is written out again. An older one is drawn whole, and a wi
 over a thread draws every turn whole, so a half-revealed answer never leaves markdown's control
 characters on screen. The pacing is in `src/reveal.ts` and `test/reveal.test.ts` holds it.
 
+The reveal is owed only to a reader who was at the window as the answer landed. The turn carries
+whether the window was up for that session at that moment, and a turn that landed with the
+window down starts at its own end, because the second and a half of a replay would be paid by
+someone who has already missed the arrival. That covers the window raised by the arrival itself:
+it opens over a finished turn and draws it whole.
+
 The reveal is also what keeps the markdown of a finished answer right: a later write rebuilds
 the list block, and the block picks the syntax style up on the way, which is the case described
 above.

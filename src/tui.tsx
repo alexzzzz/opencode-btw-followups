@@ -197,7 +197,10 @@ export default {
           failed(sessionID, EMPTY_ANSWER, "No answer came back", question)
           return "empty"
         }
-        setSides((before) => answered(before, sessionID, { question, answer }, spokenCount(sessionID)))
+        setSides((before) =>
+          answered(before, sessionID, { question, answer }, spokenCount(sessionID), windowSession() === sessionID),
+        )
+
         if (currentSession() === sessionID) showWindow(sessionID)
         return "answered"
       } catch (error) {
