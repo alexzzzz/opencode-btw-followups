@@ -110,10 +110,11 @@ copies drift.
   walks the list: Up at the very start of the text, Down at its very end. A press on the first
   line that is not at its start goes to the start, and one on the last line that is not at its
   end goes to the end, so the key means the same thing on every line. The walk saves what was
-  typed and puts it back when it leaves the newest question. Down in an empty composer with
+  typed and puts it back when it leaves the newest question. Down at the end of the last line with
   nothing left to recall opens the quick prompt list, because the key has nowhere else to go and
-  the list is the only thing below it. `src/state.ts` holds the list beside the thread,
-  `src/history.ts` owns the walk, and `test/history.test.ts` holds it in place.
+  the list is the only thing below it, and a draft in the field stays where it is. `src/state.ts`
+  holds the list beside the thread, `src/history.ts` owns the walk, and `test/history.test.ts`
+  holds it in place.
 - Take Up and Down in the same modal layer, because the composer is resolved after the layer:
   moving the cursor there is the dialog's own call, and the key must not reach the session
   behind the window. Hold both off while the quick list is open, and return `false` rather

@@ -603,12 +603,16 @@ export function ThreadDialog(props: {
     else box.moveCursorDown()
     if (box.cursorOffset !== before) return
     if (recall(direction)) return
-    if (direction === 1 && box.plainText.length === 0) {
-      setChosen(0)
-      setListed(true)
+    if (direction === 1) {
+      if (box.cursorOffset >= box.plainText.length) {
+        setChosen(0)
+        setListed(true)
+        return
+      }
+      box.cursorOffset = box.plainText.length
       return
     }
-    box.cursorOffset = direction === -1 ? 0 : box.plainText.length
+    box.cursorOffset = 0
   }
 
   context.keymap.layer(() => ({

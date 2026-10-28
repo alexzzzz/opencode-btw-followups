@@ -64,16 +64,15 @@ does what the field would do first: `Up` moves a line up and `Down` a line down.
 start of the text `Up` brings back the previous question, at its very end `Down` brings the next
 one, and `Down` past the newest question brings back what was typed. On the first line a press
 that is not at its start goes to the start, and on the last line one that is not at its end goes
-to the end. `Down` in an empty composer with nothing left to recall opens the list of prepared
-prompts.
+to the end.
 
 While a side question is being answered, the `btw` badge in the prompt row opens the
 window for it.
 
 The header of the window holds a marker that opens a list of prepared prompts, and a click on
-one of them asks it. `Down` in an empty composer opens the same list. `Up` and `Down` move the
-pick, `Up` on the first prompt closes the list and puts the cursor back in the composer, and
-`Enter` asks the pick.
+one of them asks it. `Down` at the end of the last line opens the same list and leaves whatever
+is typed in the field alone. `Up` and `Down` move the pick, `Up` on the first prompt closes the
+list and puts the cursor back in the composer, and `Enter` asks the pick.
 
 A thread belongs to the session it was asked in, and it lives in memory as long as the
 process runs.

@@ -27,7 +27,7 @@ describe("quickMarker", () => {
 
 describe("quickCardWidth", () => {
   test("the card is the longest prompt plus its number and padding", () => {
-    expect(quickCardWidth(QUICK_PROMPTS)).toBe(33)
+    expect(quickCardWidth(QUICK_PROMPTS)).toBe(42)
   })
 
   test("the card fits a panel a phone gives the dialog", () => {

@@ -1,10 +1,10 @@
 export const QUICK_PROMPTS = [
-  "How's it goin'?",
-  "How far along is the work?",
-  "What is left to finish?",
-  "What problems are there?",
-  "What could break?",
-  "How do I check this works?",
+  "How's it going?",
+  "What's left to do?",
+  "What else does this touch?",
+  "How do I verify this?",
+  "What are you least confident about?",
+  "What am I missing?",
 ] as const
 
 const WORDINGS = { full: " quick prompts", short: " prompts", number: "" } as const

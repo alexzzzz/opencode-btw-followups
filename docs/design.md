@@ -129,11 +129,13 @@ thread would resend, and what the reader typed is not one of them. The walk itse
 window, an index and the saved draft, because a position means nothing once the window is down,
 and the draft is what the window writes back to `SideState.draft`.
 
-`Down` in an empty composer with nothing left to recall opens the quick prompt list. The key has
-nowhere else to go, the list is the one thing the window keeps below the composer, and a session
-that has asked nothing has no other key that reaches it, since the header marker is a mouse
-target first. A walk that has just returned an empty draft reaches the same place on the next
-press, so the bottom of the field is one gesture whichever way the reader got there.
+`Down` at the end of the last line with nothing left to recall opens the quick prompt list, whether
+the composer holds a draft or nothing at all. The key has nowhere else to go, the list is the one
+thing the window keeps below the composer, and a session that has asked nothing has no other key
+that reaches it, since the header marker is a mouse target first. A walk that has just returned an
+empty draft reaches the same place on the next press, so the bottom of the field is one gesture
+whichever way the reader got there, and a draft in the field is left alone by the list, because a
+quick prompt is asked without touching what was typed.
 
 Both keys sit in the modal layer beside the scroll keys and are held off while the quick list is
 open, because the arrows move the list there. Unlike the recall of a scroll key, a press of `Up`
@@ -215,7 +217,7 @@ panel, floating over the transcript.
 The evidence was taken against OpenCode 2.1.2 and `@opentui/core` 0.5.14.
 
 - The panel is the host's `large` dialog, which is 88 cells wide
-  (`packages/tui/src/ui/dialog.tsx`, `dialogWidth`). The prompts are 16 to 32 cells long,
+  (`packages/tui/src/ui/dialog.tsx`, `dialogWidth`). The prompts are 15 to 35 cells long,
   so each of them takes a row of the list and none of them is cut.
 - The marker sits between two spacers in the header row, so it lands in the middle of the
   row: it is where the reader already looks, and a row of its own would cost the panel a
@@ -226,7 +228,7 @@ The evidence was taken against OpenCode 2.1.2 and `@opentui/core` 0.5.14.
   place in it.
 - The list is a block rather than a band across the panel, because a band cuts the answer behind
   it into two pieces that read as one. The block is the longest prompt plus the number column,
-  the gap and the padding: 33 cells for the six prompts of today. A panel narrower than the
+  the gap and the padding: 42 cells for the six prompts of today. A panel narrower than the
   block gives it the panel width less a cell on each side, and the prompts wrap.
 - The block draws no frame. The host draws the panel's frame, and a box inside it reads as a box
   inside a box; the raised background and a blank row are what lift the list off the transcript.
