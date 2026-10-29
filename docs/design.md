@@ -130,13 +130,13 @@ thread would resend, and what the reader typed is not one of them. The walk itse
 window, an index and the saved draft, because a position means nothing once the window is down,
 and the draft is what the window writes back to `SideState.draft`.
 
-`Down` at the end of the last line with nothing left to recall opens the quick prompt list, whether
-the composer holds a draft or nothing at all. The key has nowhere else to go, the list is the one
-thing the window keeps below the composer, and a session that has asked nothing has no other key
-that reaches it, since the header marker is a mouse target first. A walk that has just returned an
-empty draft reaches the same place on the next press, so the bottom of the field is one gesture
-whichever way the reader got there, and a draft in the field is left alone by the list, because a
-quick prompt is asked without touching what was typed.
+`Down` is cursor movement and nothing else. A press at the end of the last line with nothing left to
+recall leaves the cursor where it is, and the quick prompt list is opened by `Ctrl+Up` inside the
+window and by the marker in the header, and closed by `Ctrl+Down`. The list is not a place this key
+goes: the reader who walks a composer to its bottom is looking for the end of what they typed, and a
+menu that opens under that walk is a menu nobody asked for. A draft in the field is still left
+alone by the list whenever it does open, because a quick prompt is asked without touching what was
+typed.
 
 Both keys sit in the modal layer beside the scroll keys and are held off while the quick list is
 open, because the arrows move the list there. Unlike the recall of a scroll key, a press of `Up`
@@ -241,17 +241,16 @@ The evidence was taken against OpenCode 2.1.2 and `@opentui/core` 0.5.14.
   nothing to take, and the list drops its blank row and sits as the prompts alone. A block that
   ignored the room spilled over the composer and the footer and was cut at the panel's edge.
 - The list takes the keyboard as well as the mouse: Down moves the pick and wraps from the last
-  prompt to the first, Up moves it back and closes the list when it is already on the first,
-  Enter asks the picked prompt, and Esc closes the list and leaves the window standing. Up is the
-  way out because the composer is where the reader came from, and the first prompt is the top of
-  the list; Down still wraps, because a menu whose last row is followed by nothing is a menu with
-  a dead key at its end. Closing returns the focus to the composer, so a press that left it comes
-  back to it. The pick is the row in the base colour with an accent number, the rest stay muted
-  and faint, and a hover puts the pick under the pointer, so the row a click would ask is the row
-  Enter would ask. The bindings sit in the modal layer beside the scroll keys and are enabled only
-  while the list is open, so Enter still asks a typed question and the arrows still move the
-  cursor when the list is down. Delete is held off while the list is open, so a menu never drops
-  the thread behind it.
+  prompt to the first, Up moves it back and wraps from the first to the last, Enter asks the picked
+  prompt, and Esc closes the list and leaves the window standing. Both arrows wrap, because an
+  arrow that turns into a way out drops the list under a reader who is walking it, and Esc is the
+  way out every list in the host answers. Closing returns the focus to the composer, so a press
+  that left it comes back to it. The pick is the row in the base colour with an accent number, the
+  rest stay muted and faint, and a hover puts the pick under the pointer, so the row a click would
+  ask is the row Enter would ask. The bindings sit in the modal layer beside the scroll keys and
+  are enabled only while the list is open, so Enter still asks a typed question and the arrows
+  still move the cursor when the list is down. Delete is held off while the list is open, so a
+  menu never drops the thread behind it.
 - The background is what says the two are separate, because the transcript is drawn under it.
 - The click is a mouse up, because that is the click OpenTUI sends. A click that ends a text
   selection is not a click on a prompt, and the host makes that guard for its own labels.
@@ -552,10 +551,11 @@ importing each entrypoint.
 
 The TUI half is verified by hand: rendering, scrolling, the composer, the spinner, the
 command, the click on the badge that opens the window, the row of quick questions, the list
-they open, a quick question asked by a click, a click on a paragraph of an answer and the rail
-the pointer draws beside it, switching sessions with a window up, the line between two
-exchanges, the markdown of an answer that has finished being written, the markdown of that same
-answer after the window was closed and opened again, and the two presses that clear a thread.
+they open, the wrap of the pick at both ends of it, a quick question asked by a click, a click
+on a paragraph of an answer and the rail the pointer draws beside it, switching sessions with a
+window up, the line between two exchanges, the markdown of an answer that has finished being
+written, the markdown of that same answer after the window was closed and opened again, and the
+two presses that clear a thread.
 
 ## The picture in the README
 

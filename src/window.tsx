@@ -698,16 +698,7 @@ export function ThreadDialog(props: {
     else box.moveCursorDown()
     if (box.cursorOffset !== before) return
     if (recall(direction)) return
-    if (direction === 1) {
-      if (box.cursorOffset >= box.plainText.length) {
-        setChosen(0)
-        setListed(true)
-        return
-      }
-      box.cursorOffset = box.plainText.length
-      return
-    }
-    box.cursorOffset = 0
+    box.cursorOffset = direction === 1 ? box.plainText.length : 0
   }
 
   context.keymap.layer(() => ({
@@ -805,11 +796,6 @@ export function ThreadDialog(props: {
         enabled: () => listed(),
         run: (_input: unknown, event?: KeyEvent) => {
           event?.preventDefault()
-          if (chosen() === 0) {
-            setListed(false)
-            field?.focus()
-            return
-          }
           setChosen((index) => nextChoice(index, -1, QUICK_PROMPTS.length))
         },
       },

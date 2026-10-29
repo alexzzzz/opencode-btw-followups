@@ -77,14 +77,13 @@ While a side question is being answered, the `btw` badge in the prompt row opens
 window for it.
 
 The header of the window holds a marker that opens a list of prepared prompts, and a click on
-one of them asks it. `Down` at the end of the last line opens the same list and leaves whatever
-is typed in the field alone. `Up` and `Down` move the pick, `Up` on the first prompt closes the
-list and puts the cursor back in the composer, and `Enter` asks the pick.
+one of them asks it. `Up` and `Down` move the pick and wrap at either end, `Esc` closes the list,
+and `Enter` asks the pick.
 
 `Ctrl+Up` in the session opens the window with nothing asked, and `Ctrl+Up` inside the window
 opens the same list, which the marker in the header toggles as well. `Ctrl+Down` takes the list
-down, and the window down once the list is down. `Up` and `Down` move the pick, `Enter` asks it,
-`Up` on the first prompt or `Esc` closes the list, and the field keeps whatever was typed in it.
+down, and the window down once the list is down. `Up` and `Down` move the pick and wrap, `Enter`
+asks it, `Esc` closes the list, and the field keeps whatever was typed in it.
 
 A thread belongs to the session it was asked in, and it lives in memory as long as the
 process runs.

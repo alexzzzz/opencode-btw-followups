@@ -122,11 +122,11 @@ copies drift.
   walks the list: Up at the very start of the text, Down at its very end. A press on the first
   line that is not at its start goes to the start, and one on the last line that is not at its
   end goes to the end, so the key means the same thing on every line. The walk saves what was
-  typed and puts it back when it leaves the newest question. Down at the end of the last line with
-  nothing left to recall opens the quick prompt list, because the key has nowhere else to go and
-  the list is the only thing below it, and a draft in the field stays where it is. `src/state.ts`
-  holds the list beside the thread, `src/history.ts` owns the walk, and `test/history.test.ts`
-  holds it in place.
+  typed and puts it back when it leaves the newest question. A press with nothing left to recall
+  leaves the cursor where it is, because `Down` is cursor movement and the quick list has its own
+  keys, `Ctrl+Up` and the marker in the header, and a draft in the field stays where it is.
+  `src/state.ts` holds the list beside the thread, `src/history.ts` owns the walk, and
+  `test/history.test.ts` holds it in place.
 - Take Up and Down in the same modal layer, because the composer is resolved after the layer:
   moving the cursor there is the dialog's own call, and the key must not reach the session
   behind the window. Hold both off while the quick list is open, and return `false` rather
@@ -153,15 +153,15 @@ copies drift.
   `src/layout.ts` owns the rows the open list may take, and `test/quick.test.ts` and
   `test/layout.test.ts` hold that in place.
 - Make the list answer the keyboard as well as the mouse: Down moves the pick and wraps from the
-  last prompt to the first, Up moves it back and closes the list on the first prompt, Enter asks
+  last prompt to the first, Up moves it back and wraps from the first to the last, Enter asks
   the picked prompt, Esc closes the list and leaves the window standing, and a hover puts the pick
-  under the pointer. Up is the way out because the composer is where the reader came from and the
-  first prompt is the top of the list, and closing puts the focus back there. The pick is the row
-  in the base colour with an accent number; the rest stay muted and faint. The bindings sit in
-  the modal layer beside the scroll keys and are enabled only while the list is open, so Enter
-  still asks a typed question and the arrows still move the cursor otherwise. `nextChoice` in
-  `src/quick.ts` moves the pick, and `test/quick.test.ts` holds it in place. Delete is held off
-  while the list is open, so a menu never drops the thread behind it.
+  under the pointer. Both arrows wrap, because an arrow that turns into a way out drops the list
+  under a reader who is walking it, and Esc is the way out every list in the host answers. The
+  pick is the row in the base colour with an accent number; the rest stay muted and faint. The
+  bindings sit in the modal layer beside the scroll keys and are enabled only while the list is
+  open, so Enter still asks a typed question and the arrows still move the cursor otherwise.
+  `nextChoice` in `src/quick.ts` moves the pick, and `test/quick.test.ts` holds it in place.
+  Delete is held off while the list is open, so a menu never drops the thread behind it.
 - Ask a quick prompt the way a typed question is asked, and leave the composer alone, so
   that a click never throws away what the reader typed. The click is a mouse up, the way the
   host sends its own.
