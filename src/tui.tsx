@@ -12,6 +12,7 @@ import {
   type Sides,
   type SideTurn,
 } from "./state.ts"
+import { copiedLabel } from "./block.ts"
 import { remembered } from "./history.ts"
 import { opensFromSession } from "./keys.ts"
 import { createSyntaxStyle } from "./syntax.ts"
@@ -133,6 +134,17 @@ export default {
       )
     }
 
+    const copyBlock = (text: string) => {
+      if (context.renderer.getSelection()?.getSelectedText()) return
+      const copied = context.renderer.copyToClipboardOSC52(text)
+      tell(
+        copied ? copiedLabel(text) : "This terminal will not take a clipboard write.",
+        copied ? "success" : "warning",
+        "/btw",
+        1500,
+      )
+    }
+
     const showWindow = (sessionID: string) => {
       if (windowSession() === sessionID) return true
       const height = rows()
@@ -161,6 +173,7 @@ export default {
             clear={() => setSides((before) => cleared(before, sessionID))}
             close={lowerWindow}
             copy={copy}
+            copyBlock={copyBlock}
           />
         ),
         lowerWindow,

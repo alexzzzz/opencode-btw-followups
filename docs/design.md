@@ -316,6 +316,79 @@ the first display.
 
 The colour is read from the same place as the style, so it goes before the content too.
 
+## The paragraph a click copies
+
+A click on one piece of an answer puts that piece in the terminal clipboard, so a command or a
+sentence the reader wants out of the window does not have to be dragged across by hand. The
+piece is what the renderer already builds one of per top-level block, so a click on a paragraph,
+a list, a table or a fence copies that piece alone.
+
+The evidence was taken against `@opentui/core` 0.6.6 with the test renderer, the markdown
+renderable in `internalBlockMode: "top-level"`, and its mock mouse.
+
+- `renderNode` is the hook: the renderer asks it once per top-level block, hands it the token and
+  a `defaultRender`, and a handler set on the renderable it returns catches the click. Inline
+  tokens never reach it, so a click on a bold word inside a paragraph is a click on the
+  paragraph.
+- Returning the renderable `defaultRender` built keeps `canUpdateInPlace` true, which the reveal
+  needs: a wrapper of the plugin's own would be rebuilt on every write, and the reveal writes
+  once per step for a second and a half. A block that arrives keeps its margins too: one answer
+  carrying a heading, a paragraph, a fence, a list and a table measured the same row and height
+  for every block with the hook and without it.
+- The handler reads the text at the click from the block the renderable belongs to. A renderable
+  updated in place keeps the closure it was built with: a paragraph that grew from `First
+  paragraph.` to `First paragraph, now longer.` still copied the short one until the text was
+  read from the state at the click instead. That state is `_blockStates` on the markdown
+  renderable, which the published types carry.
+- The copy is the plain text of the piece: the markers come off a paragraph, a link gives its
+  label, a fence gives its code without the fence, a list keeps its numbers and its nesting, and
+  a table gives rows of cells. A reader who clicks a shell command gets the command, not the
+  backticks around it. `src/block.ts` holds that, and `test/block.test.ts` holds it in place.
+- A rule and a blank row copy nothing, because a click on one is not a request for a line of
+  dashes.
+- A click that ends a text selection is not a click on a piece of an answer. The selection is
+  already set when the handler runs, measured with a drag across a block, so the guard the badge
+  carries holds here too, and a reader who drags to copy by hand is not handed a second copy on
+  the way.
+- A terminal with the mouse turned off has the whole thread on `copy thread` in the footer,
+  which stays the way to the clipboard there.
+
+### The rail under the pointer
+
+A vertical rail appears in the gutter left of the block the pointer is on, so the piece a click
+would take is the piece the reader sees marked. It is the same glyph a question's rail uses
+(`RAIL` in `src/layout.ts`), because the two rails are the same kind of thing: a line that says
+what the row belongs to. The tone is not the question's: the accent already means "this is what
+you asked", so the answer's rail is drawn in `text.muted`, the tone the footer and the counts
+are drawn in, and a reader never has to tell two accents apart.
+
+The evidence was taken with the same renderer, a 60-cell terminal and the same mock mouse.
+
+- The rail costs no width. The answer already had two cells of left padding, and they became one
+  cell of rail and one of padding: the markdown measured 55 cells wide at x 2 with the rail and
+  without it, and every block kept its row and height.
+- The rail never makes the row taller. It draws `top` blank lines and then one line per row of
+  the block, and `top` plus the height is never past the block's own bottom, so the answer's
+  height is the height it had before the pointer arrived.
+- The hover is a signal of the block's row and height compared by value, so a pointer moving
+  inside one block redraws nothing.
+- The pointer is read from the event's cell coordinates, and not from the renderable whose mouse
+  out was reported. The order is measured: moving from one block to the next sends the next
+  block's `mouse move` first and the previous block's `mouse out` second, so a handler that
+  cleared on the out alone would blank the rail under a pointer that had just arrived. The out
+  resolves the row from the same coordinates instead, which leaves the rail on the block that is
+  really under the pointer, and clears it only when the pointer is outside the answer's own
+  frame, carriage to the wider row of the turn included.
+- The wheel clears the rail, because a scrolled transcript moves the block out from under a
+  pointer that has not moved.
+- A drag that selects text moves the pointer over the blocks too, so the rail is held off for the
+  whole of it: the handler reads the selection before it reads the row, and a selection that is
+  being dragged or that already holds text leaves the rail down. Measured with a press, a move
+  across two blocks and a release: `isDragging` is true through the drag, the selection keeps its
+  text after the release, and the rail stays down until a click clears the selection. The click
+  that would copy is held off by the same guard, so a selection is never mistaken for a copy of
+  the block, and the quick prompts are held off by it as well.
+
 ## The answer as it arrives
 
 `session.generate` returns the finished text in one response, so the newest answer is written
@@ -479,10 +552,10 @@ importing each entrypoint.
 
 The TUI half is verified by hand: rendering, scrolling, the composer, the spinner, the
 command, the click on the badge that opens the window, the row of quick questions, the list
-they open, a quick question asked by a click, switching sessions with a window
-up, the line between two exchanges, the markdown of an answer that has finished being
-written, the markdown of that same answer after the window was closed and opened again,
-and the two presses that clear a thread.
+they open, a quick question asked by a click, a click on a paragraph of an answer and the rail
+the pointer draws beside it, switching sessions with a window up, the line between two
+exchanges, the markdown of an answer that has finished being written, the markdown of that same
+answer after the window was closed and opened again, and the two presses that clear a thread.
 
 ## The picture in the README
 

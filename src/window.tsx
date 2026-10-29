@@ -5,6 +5,9 @@ import {
   type BoxRenderable,
   type ColorInput,
   type KeyEvent,
+  type MarkdownRenderable,
+  type MouseEvent,
+  type RenderNodeContext,
   type ScrollBoxRenderable,
   type SyntaxStyle,
   type TextareaRenderable,
@@ -24,6 +27,7 @@ import {
 } from "./footer.ts"
 import { COMPOSER_ROWS, listTranscriptRows, RAIL } from "./layout.ts"
 import { HEADER_GAP, HEADER_PAD, HEADER_TITLE, CLOSE_LABEL, headerRow, type HeaderRow } from "./header.ts"
+import { blockRow, blockText, blockTextOf, type AnswerToken, type BlockOwner, type BlockPlace } from "./block.ts"
 import { NOT_BROWSING, recalled, type Browse } from "./history.ts"
 import { QUICK_PROMPTS, nextChoice, quickCardDress, quickCardRows, quickCardWidth } from "./quick.ts"
 import { firstShown, nextChunk, REVEAL_MS, shownText } from "./reveal.ts"
@@ -203,11 +207,50 @@ function Turn(props: {
   readonly answer?: () => string
   readonly waiting?: boolean
   readonly carriedOn?: () => boolean
+  readonly copy: (text: string) => void
+  readonly selecting: () => boolean
   readonly theme: Theme
   readonly syntax: SyntaxStyle
 }) {
   const accent = () => props.theme.hue.interactive[200]
   const muted = () => props.theme.text.muted
+
+  let blocks: MarkdownRenderable | undefined
+  let answer: BoxRenderable | undefined
+  const [hovered, setHovered] = createSignal<BlockPlace | undefined>(undefined, {
+    equals: (before, now) => before?.top === now?.top && before?.height === now?.height,
+  })
+
+  const track = (event: MouseEvent) => {
+    if (props.selecting()) {
+      setHovered(undefined)
+      return
+    }
+    const inside =
+      answer !== undefined &&
+      event.x >= answer.x &&
+      event.x < answer.x + answer.width &&
+      event.y >= answer.y &&
+      event.y < answer.y + answer.height
+    setHovered(inside ? blockRow(blocks, event.y) : undefined)
+  }
+
+  const rail = () => {
+    const place = hovered()
+    if (place === undefined) return ""
+    return `${"\n".repeat(place.top)}${`${RAIL}\n`.repeat(place.height).trimEnd()}`
+  }
+
+  const clickable = (token: unknown, context: RenderNodeContext) => {
+    const renderable = context.defaultRender()
+    if (!renderable) return renderable
+    const fallback = blockText(token as AnswerToken) ?? ""
+    renderable.onMouseUp = () => {
+      const text = blockTextOf(renderable.parent as BlockOwner | null, renderable, fallback)
+      if (text !== "") props.copy(text)
+    }
+    return renderable
+  }
 
   return (
     <box flexDirection="column" gap={1} flexShrink={0}>
@@ -225,16 +268,35 @@ function Turn(props: {
       </box>
       <Show when={props.answer}>
         <box flexDirection="column" gap={1} flexShrink={0}>
-          <box flexShrink={0} paddingLeft={2} paddingRight={2}>
-            <markdown
-              syntaxStyle={props.syntax}
-              fg={props.theme.markdown.text}
-              content={props.answer!()}
-              conceal
-              streaming
-              internalBlockMode="top-level"
-              tableOptions={{ style: "grid", cellPaddingX: 1 }}
-            />
+          <box
+            ref={(element) => {
+              answer = element
+            }}
+            flexDirection="row"
+            flexShrink={0}
+            paddingRight={2}
+            onMouseMove={track}
+            onMouseOut={track}
+            onMouseScroll={() => setHovered(undefined)}
+          >
+            <box width={1} flexShrink={0}>
+              <text fg={muted()} wrapMode="none">{rail()}</text>
+            </box>
+            <box flexShrink={1} flexGrow={1} paddingLeft={1}>
+              <markdown
+                syntaxStyle={props.syntax}
+                fg={props.theme.markdown.text}
+                renderNode={clickable}
+                content={props.answer!()}
+                conceal
+                streaming
+                internalBlockMode="top-level"
+                tableOptions={{ style: "grid", cellPaddingX: 1 }}
+                ref={(element) => {
+                  blocks = element
+                }}
+              />
+            </box>
           </box>
           <Show when={props.carriedOn?.()}>
             <box
@@ -483,6 +545,7 @@ export function ThreadDialog(props: {
   readonly clear: () => void
   readonly close: () => void
   readonly copy: () => void
+  readonly copyBlock: (text: string) => void
 }) {
   const context = usePlugin()
   const theme = context.theme
@@ -788,12 +851,18 @@ export function ThreadDialog(props: {
   }))
 
   const askQuick = (question: string) => {
-    if (context.renderer.getSelection()?.getSelectedText()) return
+    if (selecting()) return
     setListed(false)
     props.ask(question)
   }
 
+  const selecting = () => {
+    const selection = context.renderer.getSelection()
+    return selection !== null && (selection.isDragging || selection.getSelectedText() !== "")
+  }
+
   const turnCount = () => props.state().turns.length
+
   const countText = () => countLabel(turnCount(), props.state().pending.length)
   const copyText = () => copyLabel(turnCount())
   const rightText = () => belowLabel(newAnswers(), below())
@@ -870,6 +939,8 @@ export function ThreadDialog(props: {
                 question={item.turn.question}
                 answer={() => reveal.text(index(), item.turn.answer)}
                 carriedOn={() => gapBelow(props.state().turns, index(), props.sessionMoved())}
+                copy={props.copyBlock}
+                selecting={selecting}
                 theme={theme}
                 syntax={props.syntax}
               />
@@ -878,7 +949,13 @@ export function ThreadDialog(props: {
 
           <Show when={activeQuestion()}>
             <box flexDirection="column" gap={1} flexShrink={0}>
-              <Turn question={activeQuestion()} theme={theme} syntax={props.syntax} />
+              <Turn
+                question={activeQuestion()}
+                copy={props.copyBlock}
+                selecting={selecting}
+                theme={theme}
+                syntax={props.syntax}
+              />
               <box flexDirection="row" gap={1} paddingLeft={2} flexShrink={0}>
                 <text fg={accent} wrapMode="none">
                   {FRAMES[frame()]}
@@ -892,7 +969,14 @@ export function ThreadDialog(props: {
 
           <For each={props.state().pending}>
             {(question) => (
-              <Turn question={question} waiting theme={theme} syntax={props.syntax} />
+              <Turn
+                question={question}
+                waiting
+                copy={props.copyBlock}
+                selecting={selecting}
+                theme={theme}
+                syntax={props.syntax}
+              />
             )}
           </For>
 

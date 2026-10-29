@@ -24,8 +24,11 @@ copy is behind. A change the copy does not hold is a change the window never sho
   scroll and clear handling inside them. `test/tui.test.ts` pins the order of the attributes
   on its markdown element, which is a rule no other test can see.
 - `src/syntax.ts` is the syntax style a fenced block in an answer is drawn with.
+- `src/block.ts` turns one top-level block of an answer into the text a click copies, and finds
+  the block under the pointer for the rail beside it.
 - `src/prompt.ts`, `src/layout.ts`, `src/quick.ts`, `src/state.ts`, `src/footer.ts`,
-  `src/header.ts`, `src/keys.ts` and `src/reveal.ts` are pure, and `test/` covers them.
+  `src/header.ts`, `src/keys.ts`, `src/reveal.ts` and `src/block.ts` are pure, and `test/`
+  covers them.
 - `README.md` is what a user reads.
 - `docs/design.md` holds the measurement behind every rule below, plus the install
   evidence and the packaging rules. Read it before you change the dialog, the prompt, the
@@ -173,6 +176,32 @@ copies drift.
 - Mark the prompt row with a braille frame in `hue.interactive[200]` and then `btw`, in one
   `box flexShrink={0}` with no gap, so the row is the four cells `/btw` measures. Call that
   row the badge, and lighten it on hover the way the host lightens its own clickable labels.
+
+### The answer under the pointer
+
+- Copy one top-level piece of an answer on a click, because that is the unit the renderer builds
+  and the unit a reader wants: `renderNode` hands each top-level block its own renderable and
+  inline tokens never reach it, so a click on a bold word is a click on its paragraph.
+  `src/block.ts` turns the token into plain text and `test/block.test.ts` holds it.
+- Return the renderable `defaultRender` built, with the handler set on it, rather than a box of
+  the plugin's own around it: a wrapper turns `canUpdateInPlace` off and the reveal rewrites the
+  content once per step for a second and a half, so every block would be rebuilt on every step.
+- Read the text at the click from the block's `_blockStates` entry, not from the closure, because
+  a block updated in place keeps the text it was built with and a paragraph that grew still
+  copied the short one.
+- Keep the rail in the gutter the answer already had, one cell of it and one cell of padding, so
+  the text width does not move when the pointer arrives; draw `top` blank lines and one line per
+  row of the block, so a rail never makes the row taller than the answer already was.
+- Read the pointer from the event's cell coordinates, because a block reports its `mouse out`
+  after the next block's `mouse move`, so clearing on the out alone blanks the rail under a
+  pointer that has just arrived. Clear it on the wheel too, because a scrolled transcript moves
+  the block out from under a pointer that has not moved.
+- Draw the rail in `text.muted` and not in the accent, because the accent already says "this is
+  what you asked" on the question's rail, and the reader should not have to tell two accents
+  apart.
+- Hold the rail off, and hold the copy and the quick prompts off, while a selection is being
+  dragged or already holds text, because a reader who drags to copy by hand is not asking for the
+  block. `selecting()` in `src/window.tsx` is the one guard behind all three.
 
 ### The session prompt
 
