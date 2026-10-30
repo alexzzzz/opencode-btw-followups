@@ -817,6 +817,7 @@ export function ThreadDialog(props: {
         group: "Dialog",
         enabled: () => listed(),
         run: (_input: unknown, event?: KeyEvent) => {
+          if ((field?.plainText.length ?? 0) > 0) return false
           event?.preventDefault()
           const question = QUICK_PROMPTS[chosen()]
           if (question) askQuick(question)
@@ -995,11 +996,14 @@ export function ThreadDialog(props: {
           field = element
         }}
         onTyped={() => {
-          if ((field?.plainText.length ?? 0) > 0) clearing.disarm()
+          if ((field?.plainText.length ?? 0) === 0) return
+          clearing.disarm()
+          setListed(false)
         }}
         onSubmit={(question) => {
           clearing.disarm()
           setBrowse(NOT_BROWSING)
+          setListed(false)
           props.ask(question)
         }}
       />

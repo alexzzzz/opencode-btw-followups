@@ -251,6 +251,15 @@ The evidence was taken against OpenCode 2.1.2 and `@opentui/core` 0.5.14.
   are enabled only while the list is open, so Enter still asks a typed question and the arrows
   still move the cursor when the list is down. Delete is held off while the list is open, so a
   menu never drops the thread behind it.
+- Typing closes the list, and `Enter` with text in the field asks that text rather than the pick.
+  A reader who starts typing has decided that none of the prepared questions says what they want:
+  the list is then something to read past, not something to pick from. For the same reason a pick
+  is asked from an empty composer alone, and `session.aside.choose` returns `false` when the field
+  holds text, so the key reaches the field and its submit takes the question. The submit closes
+  the list too, since the field is reached without the layer having closed it.
+  The measurement was a live window on OpenCode 2.2.2 with the six prompts of today: a typed `a`
+  left the list standing, and `Enter` with `ab c` in the field asked the picked prompt, closed the
+  list and left the draft where it was.
 - The background is what says the two are separate, because the transcript is drawn under it.
 - The click is a mouse up, because that is the click OpenTUI sends. A click that ends a text
   selection is not a click on a prompt, and the host makes that guard for its own labels.

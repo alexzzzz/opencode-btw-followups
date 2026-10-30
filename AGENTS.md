@@ -162,6 +162,11 @@ copies drift.
   open, so Enter still asks a typed question and the arrows still move the cursor otherwise.
   `nextChoice` in `src/quick.ts` moves the pick, and `test/quick.test.ts` holds it in place.
   Delete is held off while the list is open, so a menu never drops the thread behind it.
+- Close the list on the first keystroke in the composer, because a reader who starts typing has
+  decided that none of the prepared questions says what they want, and the list is then something
+  to read past rather than something to pick from. `Enter` with text in the field asks that text
+  rather than the pick, for the same reason: a pick is asked from an empty composer, and the
+  command returns `false` so the field submits while the list is up.
 - Ask a quick prompt the way a typed question is asked, and leave the composer alone, so
   that a click never throws away what the reader typed. The click is a mouse up, the way the
   host sends its own.
