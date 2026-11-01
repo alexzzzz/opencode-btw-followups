@@ -211,9 +211,10 @@ and against `@opentui/core` 0.5.14 and 0.6.6.
 ## The quick prompts
 
 The quick prompts are the prepared questions the window offers, so that a reader who wants to
-know how it is going does not have to write the question down first. They sit behind one
-marker in the header of the window: the marker opens the list of all of them, centred in the
-panel, floating over the transcript.
+know how it is going does not have to write the question down first. The last of them asks what
+is new since the previous answer, which is the question a reader of a thread comes back with.
+They sit behind one marker in the header of the window: the marker opens the list of all of
+them, centred in the panel, floating over the transcript.
 
 The evidence was taken against OpenCode 2.1.2 and `@opentui/core` 0.5.14.
 
@@ -229,7 +230,7 @@ The evidence was taken against OpenCode 2.1.2 and `@opentui/core` 0.5.14.
   place in it.
 - The list is a block rather than a band across the panel, because a band cuts the answer behind
   it into two pieces that read as one. The block is the longest prompt plus the number column,
-  the gap and the padding: 42 cells for the six prompts of today. A panel narrower than the
+  the gap and the padding: 42 cells for the prompts of today. A panel narrower than the
   block gives it the panel width less a cell on each side, and the prompts wrap.
 - The block draws no frame. The host draws the panel's frame, and a box inside it reads as a box
   inside a box; the raised background and a blank row are what lift the list off the transcript.
@@ -251,15 +252,16 @@ The evidence was taken against OpenCode 2.1.2 and `@opentui/core` 0.5.14.
   are enabled only while the list is open, so Enter still asks a typed question and the arrows
   still move the cursor when the list is down. Delete is held off while the list is open, so a
   menu never drops the thread behind it.
-- Typing closes the list, and `Enter` with text in the field asks that text rather than the pick.
-  A reader who starts typing has decided that none of the prepared questions says what they want:
-  the list is then something to read past, not something to pick from. For the same reason a pick
-  is asked from an empty composer alone, and `session.aside.choose` returns `false` when the field
-  holds text, so the key reaches the field and its submit takes the question. The submit closes
-  the list too, since the field is reached without the layer having closed it.
-  The measurement was a live window on OpenCode 2.2.2 with the six prompts of today: a typed `a`
-  left the list standing, and `Enter` with `ab c` in the field asked the picked prompt, closed the
-  list and left the draft where it was.
+- Typing closes the list, and `Enter` with the list up asks the pick even over a filled composer,
+  leaving that text in the field. A reader who starts typing has decided that none of the prepared
+  questions says what they want, so the list is something to read past while they type; a list
+  that is open beside text was opened on purpose, because the keystroke that filled the field put
+  it down and only `Ctrl+Up` or the marker brings it back. That open list is the decision to pick,
+  and the question being written is not thrown away by it: it goes out after, from the list down,
+  and `Esc` puts the list down and leaves the text for the field's own submit. The measurement was
+  a live window on OpenCode 2.2.5 with the six prompts of today: `Ctrl+Up` with `654654rgregrg232434`
+  in the field opened the list over it, `Enter` asked the picked prompt and left the same text in
+  the composer, and `Esc` then `Enter` asked the typed question.
 - The background is what says the two are separate, because the transcript is drawn under it.
 - The click is a mouse up, because that is the click OpenTUI sends. A click that ends a text
   selection is not a click on a prompt, and the host makes that guard for its own labels.
@@ -427,6 +429,39 @@ The reveal is also what keeps the markdown of a finished answer right: a later w
 the list block, and the block picks the syntax style up on the way, which is the case described
 above.
 
+## Holding the answer at the top
+
+The transcript follows the bottom, which is what a reader wants while a short answer is written
+out: the newest rows stay in view. A long answer is the case that breaks it, because the
+following pushes the answer's own first line out of the window while the reader is still on it.
+The window therefore follows the growth until the answer's beginning reaches the top row and
+then stops there: the reader reads the answer from its first line, and the rows that do not fit
+wait below under the footer's `↓ n below`.
+
+- The hold is the window's own scroll position, not the scrollbox's sticky bottom.
+  `stickyStart: "bottom"` is applied again by `recalculateBarProps` on every content size change
+  (`@opentui/core`, `ScrollBoxRenderable`), so the sticky bottom would push the beginning of the
+  answer out again on the next tick. The window turns `stickyScroll` off when the hold starts and
+  back on when the play ends, and a position that is not the bottom leaves `_hasManualScroll` set
+  on the way back, so turning it on does not snap the view down to the last row.
+- The position is the newest answer's box measured inside the content, `scrollTop + screenY -
+  viewport.screenY`, because `screenY` carries the parent offsets and the content's own
+  `translateY` of `-scrollTop` (`Renderable.updateLayout`), so the difference survives the
+  scrolling. The hold is `min` of that offset and the furthest the transcript can scroll: an
+  answer that fits is followed to the bottom, and one that does not is pinned at its first row.
+- The hold runs on the renderer's `frame` event, which is emitted after the root's layout pass
+  (`CliRenderer.loop`), because the reveal's own effect runs before layout and would read the
+  content height and the box's `screenY` one tick behind.
+- The hold belongs to a reader who was at the bottom when the answer started. A reader parked
+  above is reading an older answer and is told what arrived below instead, so a window that
+  moved for them would fight the transcript they chose to read.
+- A turn of the wheel or a scroll key lets go of the hold for that answer, so a reader who starts
+  scrolling during the second and a half of the reveal is not pulled back on the next tick. The
+  next answer starts with a fresh hold.
+- Asking from the window brings the transcript to the end, because after a held answer the reader
+  sits at that answer's first line: the question just asked would otherwise be written below the
+  fold, and the answer to it would follow it out of sight.
+
 ## The footer row
 
 One row, one job. While a clear waits for its second press the row is the question and nothing
@@ -434,18 +469,57 @@ else, because a warning read beside four hints is not read at all.
 
 The hints are fitted to the panel rather than abbreviated, because `pgup` is a word the reader
 has to decode. The panel's width is measured from the dialog's root box, the fixed parts of the
-row are taken off it, and the first tier that fits is drawn; the shortest tier names only the
-key that clears the thread, and a panel too narrow even for that gets no hint at all.
+row are taken off it, and the first tier that fits is drawn; the shortest tier names a single
+key, and a panel too narrow even for that gets no hint at all.
 
 A hint is never cut short. OpenTUI lays each text out at its own width, so a row that runs past
 its room does not clip, it overlaps: a phone-sized terminal gave the dialog about fifty cells,
-which leaves the footer twenty-six beside `nothing to copy`, and the two-key tier needs
-forty-one. The screenshot that showed it read `nothing to page up/ scrolldele clear t`. That arithmetic is in `src/footer.ts` and `test/footer.test.ts` holds it.
+which leaves the footer twenty-six beside `nothing to copy`, while the two-hint tier needs
+forty-two. The screenshot that showed it read `nothing to page up/ scrolldele clear t`. That
+arithmetic is in `src/footer.ts` and `test/footer.test.ts` holds it.
 
-The tier that fits a common panel names `ctrl+up/down prompts`, because a key that opens and
-closes the list is learned where it is pressed, while the wheel is a thing the reader already
-knows. It sits in place of the wheel hint for that reason, and a panel too narrow for the tier
-drops it rather than cutting it.
+A hint earns its cells only when the reader cannot reach the key by habit. The wheel is the mouse,
+`PageUp` and `PageDown` turn a page in every pane a terminal draws, `Enter` sends a line in the
+host's prompt and in the composer this window puts in the same place, and `Up` recalls a line
+wherever a prompt keeps a history; a row spent on those names the keys a reader would try first.
+
+`ctrl+home/end jump` is the opposite case, and the row names it. In the host's own prompt `Home`
+and `End` walk the messages only while nothing is focused, and the focus here is always in the
+composer, where the same keys belong to the field's ends. A reader who wants the top of a long
+answer presses `Home`, gets a cursor at the start of a line, and concludes the window does not
+jump at all. It appears only while the transcript runs past the window in one direction or the
+other, because a window that holds the whole thread has nowhere to jump and the hint would name a
+key that does nothing.
+
+The rest is what the window invented. `ctrl+up/down prompts` opens a list nothing else in the host
+has, and it is named only over an empty composer, because the first keystroke closes the list.
+`delete clear thread` drops the whole side conversation, which the row names only while the field
+is empty, so the key stays a forward delete otherwise, and only while the thread holds a turn,
+because `Delete` on an empty thread does nothing. `enter queues` is the one version of the send
+worth saying: while a question is out the press does not send, it queues the next one behind the
+answer that is arriving, and that is a fact about the state rather than about the key.
+
+The header carries `esc close` in every mode that fits the panel at all, so the row spends
+nothing on the escape.
+
+An eighty-eight-cell panel reads, in the four modes, as measured in the running window:
+
+- empty composer, nothing out, a thread to clear and text above or below:
+  `ctrl+up/down prompts · ctrl+home/end jump · delete clear thread`
+- empty composer, nothing out, an empty thread: `ctrl+up/down prompts`
+- text in the composer, nothing out: `ctrl+home/end jump`, and nothing at all once the thread
+  fits, because `Enter` needs no teaching and the row keeps `copy thread` on the left
+- empty composer, a question out: `ctrl+up/down prompts · ctrl+home/end jump`
+- text in the composer, a question out: `enter queues · ctrl+home/end jump`
+
+The row gives up its hints from the tail: the clear goes first, then the jump, then the list,
+because the clear is written down in the readme and the list is what an empty composer is for.
+A phone-sized panel that fits one of them keeps `ctrl+up/down prompts`.
+
+The composer's text is read on the renderer's `frame` event rather than from a signal, because the
+host's textarea reports typing and nothing else: a recall, the draft put back at mount and the
+submit that empties the field all write it without a word, and a row that trusted the typing alone
+would name the ask under an empty field.
 
 A reader parked above the newest answer is told what arrived below and offered the way down,
 because `stickyScroll` follows new content only from the bottom and the transcript deliberately

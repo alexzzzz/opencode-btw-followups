@@ -2,9 +2,9 @@ export const QUICK_PROMPTS = [
   "How's it going?",
   "What's left to do?",
   "What else does this touch?",
-  "How do I verify this?",
   "What are you least confident about?",
   "What am I missing?",
+  "What's new since your last answer?",
 ] as const
 
 const WORDINGS = { full: " quick prompts", short: " prompts", number: "" } as const

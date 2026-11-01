@@ -89,6 +89,17 @@ copies drift.
   `src/tui.tsx`, so a window opened later draws a played answer whole while an answer that
   arrived behind a closed window still plays when the window opens. `firstShown` in
   `src/reveal.ts` decides where the text starts.
+- Hold the newest answer's first line at the top of the window while it is written out, because
+  the transcript follows the bottom and a long answer would otherwise push its own beginning out
+  of view: the window follows a short answer to the bottom, stops following the moment the
+  answer's beginning reaches the top row, and lets go when the reader scrolls by hand. The hold
+  is the window's own scroll position with `stickyScroll` turned off, because the sticky bottom is
+  applied again on every content size change and would push the beginning out on the next tick.
+  It runs on the renderer's `frame` event, because the reveal's effect runs before layout and
+  would read the height one tick behind, and it belongs to a reader who was at the bottom when the
+  answer started, because a window that moves for a reader parked above fights the transcript they
+  chose to read. Asking from the window brings the transcript to the end, because after a held
+  answer the question just asked would land below the fold.
 - Make the badge a handle on the window: a click on the `btw` badge in the prompt row
   opens the window for the session that row belongs to, because the badge is the only
   sign of a question the reader cannot see while it is being answered. Take the session
@@ -134,9 +145,24 @@ copies drift.
 - Measure the panel width from the dialog's own root box on `onSizeChange`, because the host
   chooses the panel width. The footer fits its hints to that width, longest wording first and
   the next tier down when the panel is too narrow, and draws none rather than one cut short.
-  The tier a common panel gets names `ctrl+up/down`, because the keys are learned where they are
-  pressed and the wheel needs no teaching. `src/footer.ts` owns that fitting, and
-  `test/footer.test.ts` holds it in place.
+  `src/footer.ts` owns that fitting, and `test/footer.test.ts` holds it in place.
+- Name a key only when the reader cannot reach it by habit. `PageUp`, `PageDown`, the wheel,
+  `Enter` to send and `Up` for history mean here what they mean in the host prompt, so the row
+  leaves them out. What it names is what the host does not teach: `ctrl+home/end jump`, because
+  `Home` and `End` belong to the composer here and to the messages only while nothing is focused,
+  and it appears only while the transcript runs past the window; `ctrl+up/down prompts`;
+  `delete clear thread`; and `enter queues` while a question is out. Two facts make four modes: a
+  question is out or nothing is out, and the composer holds text or it does not. The prompt list
+  and the clear are named only over an empty composer, because the first keystroke closes the list
+  and with text in the field `Delete` is a forward delete, and the clear only while the thread
+  holds a turn, because on an empty thread the key does nothing. A question out turns the verb
+  into `enter queues` and takes the clear out, since a clear under a streaming answer drops the
+  thread that answer belongs to. The row gives up its hints from the tail — the clear first, then
+  the jump, then the list, because the list is what an empty composer is for — and the header's
+  `esc close` covers the escape in every mode that fits the panel, so the row spends nothing on it.
+  Read the composer's text on the renderer's `frame` event rather than from a signal, because the
+  host's textarea reports typing alone and a recall, the draft put back at mount and the submit
+  that empties the field all write it without a word.
 - Fit the header the same way, because a row wider than the panel wraps mid-word rather than
   clipping. The count goes first, then the notice of what is above, then the escape hint, and
   the quick marker shortens to `▸ 6 prompts` and then `▸ 6`. `src/header.ts` owns that
@@ -164,9 +190,12 @@ copies drift.
   Delete is held off while the list is open, so a menu never drops the thread behind it.
 - Close the list on the first keystroke in the composer, because a reader who starts typing has
   decided that none of the prepared questions says what they want, and the list is then something
-  to read past rather than something to pick from. `Enter` with text in the field asks that text
-  rather than the pick, for the same reason: a pick is asked from an empty composer, and the
-  command returns `false` so the field submits while the list is up.
+  to read past rather than something to pick from. Ask the pick on `Enter` while the list is up,
+  even over a filled composer, and leave that text in the field: a list open beside text was
+  opened on purpose, because the keystroke that filled the field put it down and only `Ctrl+Up` or
+  the marker brings it back, so the open list is the decision to pick and the question being
+  written goes out after it, from the list down. `Esc` puts the list down and leaves the text for
+  the field's own submit.
 - Ask a quick prompt the way a typed question is asked, and leave the composer alone, so
   that a click never throws away what the reader typed. The click is a mouse up, the way the
   host sends its own.

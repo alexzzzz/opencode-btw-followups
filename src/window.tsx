@@ -22,6 +22,7 @@ import {
   countLabel,
   FOOTER_GAP,
   FOOTER_PAD,
+  footerMode,
   keyHints,
   type Hint,
 } from "./footer.ts"
@@ -124,7 +125,12 @@ function useAnswerReveal(
       ? shownText(answer, shown())
       : answer.trimEnd()
 
-  return { shown, text }
+  const revealing = () => {
+    const last = state().turns.at(-1)
+    return last !== undefined && shown() < last.turn.answer.length
+  }
+
+  return { shown, text, revealing }
 }
 
 function useClearConfirm(count: () => number, clear: () => void) {
@@ -207,6 +213,7 @@ function Turn(props: {
   readonly answer?: () => string
   readonly waiting?: boolean
   readonly carriedOn?: () => boolean
+  readonly anchor?: (element: BoxRenderable) => void
   readonly copy: (text: string) => void
   readonly selecting: () => boolean
   readonly theme: Theme
@@ -271,6 +278,7 @@ function Turn(props: {
           <box
             ref={(element) => {
               answer = element
+              props.anchor?.(element)
             }}
             flexDirection="row"
             flexShrink={0}
@@ -556,6 +564,10 @@ export function ThreadDialog(props: {
   let scroller: ScrollBoxRenderable | undefined
   let panel: BoxRenderable | undefined
   let place = props.state().place
+  let newest: BoxRenderable | undefined
+  let holding = false
+  let wasPlaying = false
+  let scrolledByHand = false
 
   const reveal = useAnswerReveal(props.state, props.played, props.markPlayed)
   const frame = useSpinnerFrame(() => Boolean(props.state().active))
@@ -586,6 +598,7 @@ export function ThreadDialog(props: {
   const [above, setAbove] = createSignal(0)
   const [below, setBelow] = createSignal(0)
   const [newAnswers, setNewAnswers] = createSignal(0)
+  const [typed, setTyped] = createSignal(false)
   let seen = props.state().turns.length
 
   const atEnd = () => {
@@ -616,15 +629,48 @@ export function ThreadDialog(props: {
   const scrollToEnd = () => {
     const box = scroller
     if (!box) return
+    scrolledByHand = true
     box.scrollTo(Math.max(0, box.scrollHeight))
     readToEnd()
     measure()
   }
 
   const onScroll = () => {
+    scrolledByHand = true
     measure()
     if (atEnd()) readToEnd()
   }
+
+  const hold = () => {
+    const box = scroller
+    if (!box) return
+    const playing = reveal.revealing()
+    if (playing && !wasPlaying) {
+      holding = atEnd()
+      scrolledByHand = false
+    }
+    wasPlaying = playing
+    if (playing && holding && !scrolledByHand && newest) {
+      if (box.stickyScroll) box.stickyScroll = false
+      const start = Math.round(box.scrollTop + newest.screenY - box.viewport.screenY)
+      const most = Math.max(0, box.scrollHeight - box.height)
+      box.scrollTo(Math.max(0, Math.min(most, start)))
+      return
+    }
+    if (!box.stickyScroll) box.stickyScroll = true
+  }
+
+  const noteTyped = () => setTyped((field?.plainText.length ?? 0) > 0)
+
+  onMount(() => {
+    context.renderer.on("frame", hold)
+    context.renderer.on("frame", noteTyped)
+  })
+
+  onCleanup(() => {
+    context.renderer.off("frame", hold)
+    context.renderer.off("frame", noteTyped)
+  })
 
   createEffect(() => {
     props.state()
@@ -817,7 +863,6 @@ export function ThreadDialog(props: {
         group: "Dialog",
         enabled: () => listed(),
         run: (_input: unknown, event?: KeyEvent) => {
-          if ((field?.plainText.length ?? 0) > 0) return false
           event?.preventDefault()
           const question = QUICK_PROMPTS[chosen()]
           if (question) askQuick(question)
@@ -840,6 +885,7 @@ export function ThreadDialog(props: {
   const askQuick = (question: string) => {
     if (selecting()) return
     setListed(false)
+    scrollToEnd()
     props.ask(question)
   }
 
@@ -854,7 +900,15 @@ export function ThreadDialog(props: {
   const copyText = () => copyLabel(turnCount())
   const rightText = () => belowLabel(newAnswers(), below())
   const confirmText = () => clearLabel(turnCount(), width())
-  const hintTier = () => keyHints(width(), copyText(), rightText())
+  const hintTier = () =>
+    keyHints({
+      panelWidth: width(),
+      copy: copyText(),
+      right: rightText(),
+      mode: footerMode(props.state().active !== undefined, typed()),
+      canClear: turnCount() > 0,
+      canJump: above() > 0 || below() > 0,
+    })
   const header = () => headerRow(width(), countText(), above(), QUICK_PROMPTS.length, listed())
   const listRoom = () => Math.max(0, height() - 2)
   const cardRows = () => quickCardRows(QUICK_PROMPTS.length)
@@ -926,6 +980,9 @@ export function ThreadDialog(props: {
                 question={item.turn.question}
                 answer={() => reveal.text(index(), item.turn.answer)}
                 carriedOn={() => gapBelow(props.state().turns, index(), props.sessionMoved())}
+                anchor={(element) => {
+                  if (index() === turnCount() - 1) newest = element
+                }}
                 copy={props.copyBlock}
                 selecting={selecting}
                 theme={theme}
@@ -1004,6 +1061,7 @@ export function ThreadDialog(props: {
           clearing.disarm()
           setBrowse(NOT_BROWSING)
           setListed(false)
+          scrollToEnd()
           props.ask(question)
         }}
       />
