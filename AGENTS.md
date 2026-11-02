@@ -93,9 +93,9 @@ copies drift.
   because the transcript follows the bottom and a long answer would otherwise push its own
   question out of view: the window follows a short answer to the bottom, stops following the
   moment the question's beginning reaches the top row, and lets go when the reader scrolls by
-  hand. The hold
-  is the window's own scroll position with `stickyScroll` turned off, because the sticky bottom is
-  applied again on every content size change and would push the beginning out on the next tick.
+  hand. The hold is the window's own scroll position with `stickyScroll` turned off, because the
+  sticky bottom is applied again on every content size change and would push the question out on
+  the next tick.
   It runs on the renderer's `frame` event, because the reveal's effect runs before layout and
   would read the height one tick behind, and it belongs to a reader who was at the bottom when the
   answer started, because a window that moves for a reader parked above fights the transcript they
