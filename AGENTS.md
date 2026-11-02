@@ -89,10 +89,11 @@ copies drift.
   `src/tui.tsx`, so a window opened later draws a played answer whole while an answer that
   arrived behind a closed window still plays when the window opens. `firstShown` in
   `src/reveal.ts` decides where the text starts.
-- Hold the newest answer's first line at the top of the window while it is written out, because
-  the transcript follows the bottom and a long answer would otherwise push its own beginning out
-  of view: the window follows a short answer to the bottom, stops following the moment the
-  answer's beginning reaches the top row, and lets go when the reader scrolls by hand. The hold
+- Hold the newest question's first line at the top of the window while its answer is written out,
+  because the transcript follows the bottom and a long answer would otherwise push its own
+  question out of view: the window follows a short answer to the bottom, stops following the
+  moment the question's beginning reaches the top row, and lets go when the reader scrolls by
+  hand. The hold
   is the window's own scroll position with `stickyScroll` turned off, because the sticky bottom is
   applied again on every content size change and would push the beginning out on the next tick.
   It runs on the renderer's `frame` event, because the reveal's effect runs before layout and

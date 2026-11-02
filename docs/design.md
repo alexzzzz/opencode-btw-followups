@@ -429,26 +429,27 @@ The reveal is also what keeps the markdown of a finished answer right: a later w
 the list block, and the block picks the syntax style up on the way, which is the case described
 above.
 
-## Holding the answer at the top
+## Holding the question at the top
 
 The transcript follows the bottom, which is what a reader wants while a short answer is written
 out: the newest rows stay in view. A long answer is the case that breaks it, because the
-following pushes the answer's own first line out of the window while the reader is still on it.
-The window therefore follows the growth until the answer's beginning reaches the top row and
-then stops there: the reader reads the answer from its first line, and the rows that do not fit
-wait below under the footer's `↓ n below`.
+following pushes the question it answers out of the window while the reader is still on it. The
+window therefore follows the growth until the question's first row reaches the top and then
+stops there: the reader reads the answer under the question that asked for it, and the rows that
+do not fit wait below under the footer's `↓ n below`.
 
 - The hold is the window's own scroll position, not the scrollbox's sticky bottom.
   `stickyStart: "bottom"` is applied again by `recalculateBarProps` on every content size change
-  (`@opentui/core`, `ScrollBoxRenderable`), so the sticky bottom would push the beginning of the
-  answer out again on the next tick. The window turns `stickyScroll` off when the hold starts and
-  back on when the play ends, and a position that is not the bottom leaves `_hasManualScroll` set
-  on the way back, so turning it on does not snap the view down to the last row.
-- The position is the newest answer's box measured inside the content, `scrollTop + screenY -
-  viewport.screenY`, because `screenY` carries the parent offsets and the content's own
+  (`@opentui/core`, `ScrollBoxRenderable`), so the sticky bottom would push the question out
+  again on the next tick. The window turns `stickyScroll` off when the hold starts and back on
+  when the play ends, and a position that is not the bottom leaves `_hasManualScroll` set on the
+  way back, so turning it on does not snap the view down to the last row.
+- The position is the newest turn's question box measured inside the content, `scrollTop +
+  screenY - viewport.screenY`, because `screenY` carries the parent offsets and the content's own
   `translateY` of `-scrollTop` (`Renderable.updateLayout`), so the difference survives the
-  scrolling. The hold is `min` of that offset and the furthest the transcript can scroll: an
-  answer that fits is followed to the bottom, and one that does not is pinned at its first row.
+  scrolling. The hold is `min` of that offset and the furthest the transcript can scroll: a thread
+  that fits is followed to the bottom, and one that does not is pinned at the question's first row.
+
 - The hold runs on the renderer's `frame` event, which is emitted after the root's layout pass
   (`CliRenderer.loop`), because the reveal's own effect runs before layout and would read the
   content height and the box's `screenY` one tick behind.
@@ -459,7 +460,7 @@ wait below under the footer's `↓ n below`.
   scrolling during the second and a half of the reveal is not pulled back on the next tick. The
   next answer starts with a fresh hold.
 - Asking from the window brings the transcript to the end, because after a held answer the reader
-  sits at that answer's first line: the question just asked would otherwise be written below the
+  sits at that answer's question: the question just asked would otherwise be written below the
   fold, and the answer to it would follow it out of sight.
 
 ## The footer row

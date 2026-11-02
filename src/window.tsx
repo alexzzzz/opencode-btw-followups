@@ -262,6 +262,9 @@ function Turn(props: {
   return (
     <box flexDirection="column" gap={1} flexShrink={0}>
       <box
+        ref={(element) => {
+          props.anchor?.(element)
+        }}
         border={["left"]}
         borderColor={props.waiting ? muted() : accent()}
         customBorderChars={{ ...BorderChars.single, vertical: RAIL }}
@@ -278,7 +281,6 @@ function Turn(props: {
           <box
             ref={(element) => {
               answer = element
-              props.anchor?.(element)
             }}
             flexDirection="row"
             flexShrink={0}
@@ -564,7 +566,7 @@ export function ThreadDialog(props: {
   let scroller: ScrollBoxRenderable | undefined
   let panel: BoxRenderable | undefined
   let place = props.state().place
-  let newest: BoxRenderable | undefined
+  let held: BoxRenderable | undefined
   let holding = false
   let wasPlaying = false
   let scrolledByHand = false
@@ -650,9 +652,9 @@ export function ThreadDialog(props: {
       scrolledByHand = false
     }
     wasPlaying = playing
-    if (playing && holding && !scrolledByHand && newest) {
+    if (playing && holding && !scrolledByHand && held) {
       if (box.stickyScroll) box.stickyScroll = false
-      const start = Math.round(box.scrollTop + newest.screenY - box.viewport.screenY)
+      const start = Math.round(box.scrollTop + held.screenY - box.viewport.screenY)
       const most = Math.max(0, box.scrollHeight - box.height)
       box.scrollTo(Math.max(0, Math.min(most, start)))
       return
@@ -981,7 +983,7 @@ export function ThreadDialog(props: {
                 answer={() => reveal.text(index(), item.turn.answer)}
                 carriedOn={() => gapBelow(props.state().turns, index(), props.sessionMoved())}
                 anchor={(element) => {
-                  if (index() === turnCount() - 1) newest = element
+                  if (index() === turnCount() - 1) held = element
                 }}
                 copy={props.copyBlock}
                 selecting={selecting}
