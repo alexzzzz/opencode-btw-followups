@@ -699,6 +699,7 @@ export function ThreadDialog(props: {
   })
 
   const clearing = useClearConfirm(() => props.state().turns.length, () => {
+    held = undefined
     place = undefined
     props.clear()
   })

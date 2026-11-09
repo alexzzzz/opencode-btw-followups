@@ -126,27 +126,32 @@ const placeOf = (owner: BlockOwner | null | undefined, state: BlockState) => {
   return { top: frame.y - (owner?.y ?? frame.y), height: frame.height }
 }
 
+const findBlock = (
+  owner: BlockOwner | null | undefined,
+  match: (state: BlockState) => boolean,
+) => owner?._blockStates?.find(match)
+
 export const blockTextOf = (
   owner: BlockOwner | null | undefined,
   renderable: unknown,
   fallback: string,
 ) => {
-  const state = owner?._blockStates?.find((item) => item.renderable === renderable)
-  if (state === undefined) return fallback
-  return blockText(state.token) ?? fallback
+  const found = findBlock(owner, (item) => item.renderable === renderable)
+  if (found === undefined) return fallback
+  return blockText(found.token) ?? fallback
 }
 
 export const blockPlace = (owner: BlockOwner | null | undefined, renderable: unknown) => {
-  const state = owner?._blockStates?.find((item) => item.renderable === renderable)
-  return state === undefined ? undefined : placeOf(owner, state)
+  const found = findBlock(owner, (item) => item.renderable === renderable)
+  return found === undefined ? undefined : placeOf(owner, found)
 }
 
 export const blockRow = (owner: BlockOwner | null | undefined, row: number) => {
-  const state = owner?._blockStates?.find((item) => {
+  const found = findBlock(owner, (item) => {
     const frame = frameOf(item.renderable)
     return frame !== undefined && row >= frame.y && row < frame.y + frame.height
   })
-  return state === undefined ? undefined : placeOf(owner, state)
+  return found === undefined ? undefined : placeOf(owner, found)
 }
 
 export const copiedLabel = (text: string) => {

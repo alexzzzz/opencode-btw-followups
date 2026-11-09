@@ -220,7 +220,8 @@ export default {
         return "answered"
       } catch (error) {
         if (call.signal.aborted) return "dropped"
-        failed(sessionID, errorMessage(error))
+        if (!sides().has(sessionID)) return "dropped"
+        failed(sessionID, errorMessage(error), undefined, question)
         return "failed"
       } finally {
         if (inFlight.get(sessionID) === call) inFlight.delete(sessionID)
@@ -255,7 +256,7 @@ export default {
         tell("Open a session first", "warning")
         return
       }
-      edit(sessionID, { failure: undefined })
+      if (view(sessionID).failure !== undefined) edit(sessionID, { failure: undefined })
       if (showWindow(sessionID) && question?.trim()) ask(sessionID, question)
     }
 

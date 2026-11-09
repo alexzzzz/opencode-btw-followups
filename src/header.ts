@@ -68,5 +68,5 @@ export const headerRow = (
   ].map(compacted)
 
   const fits = rows.find((row) => widthOf(row) <= panelWidth)
-  return fits ?? compacted({ cells: TITLE_ONLY, count, above, marker: "" })
+  return fits ?? rows.at(-1)!
 }
