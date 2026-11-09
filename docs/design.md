@@ -538,9 +538,9 @@ the last answer and the end of the loop finds the session busy, lands in the que
 otherwise be sent by nothing.
 
 The queue outlives the window. A close ends the view alone, because a question that was asked is
-not un-asked by closing the view, and the loop that is paused while no window is up picks the
-queue back up when the window opens again. The header counts what waits, so nothing leaves
-silently with the frame.
+not un-asked by closing the view, and the loop keeps draining while no window is up, so every
+question asked is answered whether the view is down or not. The header counts what waits, so
+nothing leaves silently with the frame.
 
 An empty answer stops the queue with the question in the failure, and an error stops it too:
 answering more questions against a gap in the thread is worse than stopping. A deleted session

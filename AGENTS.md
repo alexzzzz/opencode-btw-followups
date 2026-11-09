@@ -78,8 +78,9 @@ copies drift.
   another session takes the window down without ending anything, so the thread, the request in
   flight and the queue stay in their session.
 - Closing the window ends the window alone and lets a request in flight finish, because a
-  question that was asked is not un-asked by closing the view: the queue pauses while no window
-  is up and goes on at the next open. A deleted session calls that request off.
+  question that was asked is not un-asked by closing the view: the queue keeps draining while
+  no window is up and answers everything that was asked. A deleted session calls that request
+  off.
 - Raise the window for an answer only when the reader is in the session it belongs to.
 - Write out each new answer once, and only once. The computation behind the reveal runs on every
   write to the side state, not only when a turn is added, and an answer lands as two writes a
