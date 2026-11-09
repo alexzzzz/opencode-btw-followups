@@ -44,6 +44,7 @@
     "typecheck": "tsc --noEmit",
     "test": "bun test",
     "check": "bun run typecheck && bun test && bun run build",
+    "screenshots": "bun scripts/screenshot.mjs",
     "deploy": "node scripts/deploy.mjs",
     "deploy:check": "node scripts/deploy.mjs --check",
     "prepublishOnly": "bun run check"
