@@ -1,5 +1,5 @@
 import { remembered } from "./history.ts"
-import { thread as buildPrompt, type Turn } from "./prompt.ts"
+import { thread as buildPrompt } from "./prompt.ts"
 import {
   answered as addTurn,
   change,
@@ -8,7 +8,6 @@ import {
   stateOf,
   type SideState,
   type Sides,
-  type SideTurn,
 } from "./state.ts"
 
 const EMPTY_ANSWER =
@@ -24,7 +23,7 @@ export type GenerateCall = {
 
 export type Notice = {
   readonly message: string
-  readonly variant: string
+  readonly variant: "info" | "success" | "warning" | "error"
   readonly title?: string | undefined
   readonly duration?: number | undefined
 }
@@ -39,20 +38,14 @@ export type ThreadAdapters = {
   readonly spoken: (sessionID: string) => number
   readonly current: () => string | undefined
   readonly windowSession: () => string | undefined
-  readonly notify: (
-    message: string,
-    variant: string,
-    title?: string | undefined,
-    duration?: number | undefined,
-  ) => void
+  readonly notify: (notice: Notice) => void
   readonly raise: (sessionID: string) => void
   readonly publish: (sides: Sides) => void
 }
 
-export type Thread = {
+export type SessionThread = {
   ask(sessionID: string, question: string): void
   send(sessionID: string): void
-  answered(sessionID: string, turn: Turn, spokenAt: number): void
   failed(
     sessionID: string | undefined,
     message: string,
@@ -60,26 +53,22 @@ export type Thread = {
     question?: string | undefined,
   ): void
   clear(sessionID: string): void
-  forget(sessionID: string): void
   crash(sessionID: string | undefined, error: unknown): void
   view(sessionID: string): SideState
   dismiss(sessionID: string): void
   remember(sessionID: string, draft: string, place: SideState["place"]): void
-  played(item: SideTurn): boolean
-  markPlayed(item: SideTurn): void
-  spoken(sessionID: string): number
   dispose(): void
 }
 
 type Outcome = "answered" | "empty" | "failed" | "dropped"
 
-const errorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error))
+const errorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : String(error)
 
-export const createThread = (adapters: ThreadAdapters): Thread => {
+export const createSessionThread = (adapters: ThreadAdapters): SessionThread => {
   let sides: Sides = new Map()
   const draining = new Set<string>()
   const inFlight = new Map<string, AbortController>()
-  const playedTurns = new WeakSet<SideTurn>()
 
   const commit = (next: Sides) => {
     sides = next
@@ -99,19 +88,18 @@ export const createThread = (adapters: ThreadAdapters): Thread => {
       edit(sessionID, { failure: { message, title, question } })
       if (adapters.windowSession() === sessionID) return
     }
-    adapters.notify(
-      question ? `${message}\n\nQuestion: ${question}` : message,
-      "error",
+    adapters.notify({
+      message: question ? `${message}\n\nQuestion: ${question}` : message,
+      variant: "error",
       title,
-      6000,
-    )
+      duration: 6000,
+    })
   }
 
   const unexpected = (sessionID: string | undefined, error: unknown) => {
-    const named = error instanceof Error ? `${error.name}: ${error.message}` : String(error)
     failed(
       sessionID,
-      named.trim() || "The side question threw something with no message.",
+      errorMessage(error).trim() || "The side question threw something with no message.",
       "/btw did not run",
     )
   }
@@ -189,14 +177,10 @@ export const createThread = (adapters: ThreadAdapters): Thread => {
       send(sessionID)
     },
     send,
-    answered(sessionID, turn, spokenAt) {
-      commit(addTurn(sides, sessionID, turn, spokenAt))
-    },
     failed,
     clear(sessionID) {
       commit(cleared(sides, sessionID))
     },
-    forget,
     crash: unexpected,
     view,
     dismiss(sessionID) {
@@ -204,15 +188,6 @@ export const createThread = (adapters: ThreadAdapters): Thread => {
     },
     remember(sessionID, draft, place) {
       edit(sessionID, { draft, place })
-    },
-    played(item) {
-      return playedTurns.has(item)
-    },
-    markPlayed(item) {
-      playedTurns.add(item)
-    },
-    spoken(sessionID) {
-      return adapters.spoken(sessionID)
     },
     dispose() {
       for (const call of inFlight.values()) call.abort()

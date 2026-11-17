@@ -5,7 +5,7 @@ import {
   pointerAt,
   samePointer,
   type AnswerToken,
-  type PointerResult,
+  type AnswerPointer,
   type PointerSurface,
 } from "../src/pointer.ts"
 
@@ -44,7 +44,7 @@ const surface = (
 
 const none = () => false
 
-const at = (s: PointerSurface, x: number, y: number, selecting = none): PointerResult =>
+const at = (s: PointerSurface, x: number, y: number, selecting = none): AnswerPointer =>
   pointerAt({ x, y }, s, selecting)
 
 describe("the text a click copies", () => {

@@ -1,3 +1,5 @@
+export const SESSION_OPEN_BIND = "ctrl+up"
+
 export type Hint = readonly [key: string, rest: string]
 
 export type HintId = "list" | "jump" | "clear" | "queues"
@@ -122,7 +124,7 @@ const GROUPS: readonly Group[] = [
     keys: [
       {
         id: "session.aside.list",
-        bind: "ctrl+up",
+        bind: SESSION_OPEN_BIND,
         title: "Quick prompts",
         intent: "list",
         enabled: always,

@@ -27,7 +27,7 @@ export type BlockPlace = {
   readonly height: number
 }
 
-export type PointerResult = {
+export type AnswerPointer = {
   readonly place: BlockPlace | undefined
   readonly rail: string
   readonly copy: string
@@ -37,7 +37,7 @@ export type SelectionGuard = () => boolean
 
 const SNIPPET = 40
 
-export const emptyPointer: PointerResult = { place: undefined, rail: "", copy: "" }
+export const emptyPointer: AnswerPointer = { place: undefined, rail: "", copy: "" }
 
 const LEAVES = new Set(["text", "escape", "codespan", "html"])
 
@@ -174,7 +174,7 @@ export const pointerAt = (
   event: PointerEvent,
   surface: PointerSurface,
   selecting: SelectionGuard,
-): PointerResult => {
+): AnswerPointer => {
   if (selecting()) return emptyPointer
   const answer = answerOf(surface.answer)
   if (!answer) return emptyPointer
@@ -189,7 +189,7 @@ export const pointerAt = (
   return { place: found.place, rail: railOf(found.place), copy: blockText(found.state.token) ?? "" }
 }
 
-export const samePointer = (before: PointerResult, after: PointerResult) =>
+export const samePointer = (before: AnswerPointer, after: AnswerPointer) =>
   before.place?.top === after.place?.top &&
   before.place?.height === after.place?.height &&
   before.rail === after.rail &&

@@ -25,12 +25,12 @@ export type PanelInput = {
   readonly needed: number
 }
 
-export type PanelHeights = {
+export type PanelGeometry = {
   readonly maxHeight: number
   readonly minHeight: number
 }
 
-export const panelHeights = (input: PanelInput): PanelHeights => {
+export const panelHeights = (input: PanelInput): PanelGeometry => {
   const max = input.listed
     ? listTranscriptRows(input.rows, input.composerRows, input.needed)
     : transcriptRows(input.rows)

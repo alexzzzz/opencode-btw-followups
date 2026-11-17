@@ -5,6 +5,10 @@ prompt, the install notes or the build, because each item below cost a measureme
 The sources carry no comments: a name says what a thing does, and this file says why it is
 shaped that way. `README.md` carries what a user sees.
 
+The exported names follow the domain — `SessionThread`, `AnswerPlayback`, `AnswerPointer` and
+`PanelGeometry` — rather than the file names, which stayed short as the modules grew. Renaming
+the files would move every import without adding a fact, so the names live in the code and here.
+
 ## What the host does not expose
 
 Checked against the published types of `@opencode/plugin` and `@opentui/core` that `package.json`
@@ -413,7 +417,8 @@ The evidence was taken with the same renderer, a 60-cell terminal and the same m
 ## The answer as it arrives
 
 The play below — the guard, the played memory, the first-shown choice and the step arithmetic —
-lives in `src/playback.ts`. The dialog injects a timer and consumes `text` and `revealing`;
+lives in `src/playback.ts`, behind `createAnswerPlayback` and its `AnswerPlayback` interface. The
+dialog passes a session id and a timer and consumes `text` and `revealing`;
 `test/playback.test.ts` holds the rules and the shipped regressions.
 
 `session.generate` returns the finished text in one response, so the newest answer is written
@@ -438,7 +443,8 @@ going out, and a probe put them two milliseconds apart: the first started the pl
 characters and the second, reading the answer as already played, drew all twelve hundred at once.
 The playback module therefore remembers the turn it is playing and returns early for later runs
 over the same one. Its played memory lives beside the pacing in `src/playback.ts` rather than in
-the window, because a fresh window has to know what an earlier one played.
+the window, keyed by session id, because a fresh window has to know what an earlier one played for
+that session and a different session must start its own play.
 
 The reveal is also what keeps the markdown of a finished answer right: a later write rebuilds
 the list block, and the block picks the syntax style up on the way, which is the case described
@@ -487,6 +493,8 @@ do not fit wait below under the footer's `↓ n below`.
 The four modes, the key table and the tier fitting live in `src/interaction.ts`. The footer
 measures the room the row has left and asks the table for its hints; the dialog builds its keymap
 from the same table, so a bind and the hint that names it are one entry and cannot drift apart.
+The session command that opens the window binds the same `SESSION_OPEN_BIND` the list key uses,
+so the key named in the window and the key that opens it cannot part.
 `test/interaction.test.ts` holds the table and the fitting.
 
 One row, one job. While a clear waits for its second press the row is the question and nothing
@@ -525,6 +533,11 @@ because `Delete` on an empty thread does nothing. `enter queues` is the one vers
 worth saying: while a question is out the press does not send, it queues the next one behind the
 answer that is arriving, and that is a fact about the state rather than about the key.
 
+The `queue` entry in the table carries no keymap command of its own: `Enter` is already the
+composer's submit, so the dialog leaves that intent a no-op and the field does the work. The entry
+stays in the table because the table is the one source for both the binds and the hints that name
+them; a hint built outside it would be a second copy that could drift.
+
 The header carries `esc close` in every mode that fits the panel at all, so the row spends
 nothing on the escape.
 
@@ -556,9 +569,11 @@ has already found the answer themselves.
 
 The lifecycle below — one request in flight, the queue that outlives the window, a clear that keeps
 what was not asked to be dropped, an empty answer becoming a failure, and a deleted session calling
-its request off — lives in `src/thread.ts`. The answer generator and the session-deleted event are
-adapters injected at its seam, and the per-session registries for in-flight, draining and played
-answers are internal. `test/thread.test.ts` holds the rules.
+its request off — lives in `src/thread.ts`, behind `createSessionThread` and its `SessionThread`
+interface. The answer generator and the session-deleted event are adapters injected at its seam,
+and the per-session registries for in-flight answers and draining loops are internal; played
+memory is keyed by session id in `src/playback.ts`, the one place that reads and writes it.
+`test/thread.test.ts` holds the rules.
 
 One request at a time per session. The questions asked while one is out go out together as the
 next one, numbered by `thread`, so they are answered as a list rather than as one run-together

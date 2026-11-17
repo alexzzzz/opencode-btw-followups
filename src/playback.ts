@@ -6,7 +6,7 @@ export type PlayableTurn = {
   readonly answer: string
 }
 
-export type Playback = {
+export type AnswerPlayback = {
   readonly text: (index: number) => string
   readonly revealing: () => boolean
   readonly markPlayed: (turn: PlayableTurn) => void
@@ -29,12 +29,23 @@ const firstShown = (alreadyRevealed: boolean, length: number) =>
 const shownText = (answer: string, shown: number) =>
   shown >= answer.length ? answer.trimEnd() : answer.slice(0, shown).trimEnd()
 
-const played = new WeakSet<PlayableTurn>()
+const playedBySession = new Map<string, WeakSet<PlayableTurn>>()
 
-export const createPlayback = (
+const memoryFor = (sessionID: string) => {
+  let memory = playedBySession.get(sessionID)
+  if (memory === undefined) {
+    memory = new WeakSet<PlayableTurn>()
+    playedBySession.set(sessionID, memory)
+  }
+  return memory
+}
+
+export const createAnswerPlayback = (
+  sessionID: string,
   turns: () => readonly PlayableTurn[],
   timer: Timer,
-): Playback => {
+): AnswerPlayback => {
+  const played = memoryFor(sessionID)
   let shown = 0
   let playing: PlayableTurn | undefined
   let cancel: (() => void) | undefined

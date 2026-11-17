@@ -1,5 +1,12 @@
 import { describe, expect, test } from "bun:test"
-import { bindings, footerMode, hints, opensFromSession, type InteractionMode } from "../src/interaction.ts"
+import {
+  bindings,
+  footerMode,
+  hints,
+  opensFromSession,
+  SESSION_OPEN_BIND,
+  type InteractionMode,
+} from "../src/interaction.ts"
 import {
   belowLabel,
   clearLabel,
@@ -89,6 +96,13 @@ describe("the key table", () => {
 })
 
 describe("opensFromSession", () => {
+  test("the session command and the window list read one bind", () => {
+    expect(SESSION_OPEN_BIND).toBe("ctrl+up")
+    expect(bindings(() => mode()).find((binding) => binding.id === "session.aside.list")?.bind).toBe(
+      SESSION_OPEN_BIND,
+    )
+  })
+
   test("an open session with no window opens one", () => {
     expect(opensFromSession("ses_1", undefined)).toBe(true)
   })

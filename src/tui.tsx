@@ -1,8 +1,8 @@
 import { createSignal, Show } from "solid-js"
 import type { Plugin } from "@opencode/plugin/tui"
-import { createThread, type Thread } from "./thread.ts"
+import { createSessionThread, type Notice, type SessionThread } from "./thread.ts"
 import { copiedLabel } from "./pointer.ts"
-import { opensFromSession } from "./interaction.ts"
+import { opensFromSession, SESSION_OPEN_BIND } from "./interaction.ts"
 import { createSyntaxStyle } from "./syntax.ts"
 import { panelHeights } from "./layout.ts"
 import { movedSinceLast, showsBadge, stateOf, type Sides } from "./state.ts"
@@ -15,7 +15,7 @@ type Resizable = {
   off(event: "resize", handler: () => void): void
 }
 
-type ToastVariant = "info" | "success" | "warning" | "error"
+type ToastVariant = Notice["variant"]
 
 export default {
   id: ID,
@@ -26,6 +26,11 @@ export default {
     const syntax = createSyntaxStyle(context.theme, (context.renderer as any).nativeScene)
 
     const view = (sessionID: string) => stateOf(sides(), sessionID)
+
+    const spoken = (sessionID: string) =>
+      context.data.session.message
+        .list(sessionID)
+        .filter((message) => message.type === "user" || message.type === "assistant").length
 
     const resizeEvents = context.renderer as unknown as Resizable
     const followRows = () => setRows(context.renderer.terminalHeight)
@@ -86,7 +91,7 @@ export default {
       )
     }
 
-    const thread: Thread = createThread({
+    const thread: SessionThread = createSessionThread({
       generate(sessionID, prompt, signal) {
         return context.client.session.generate({ sessionID, prompt }, { signal })
       },
@@ -96,18 +101,11 @@ export default {
           handler(event.data.sessionID)
         })
       },
-      spoken(sessionID) {
-        return context.data.session.message
-          .list(sessionID)
-          .filter((message) => message.type === "user" || message.type === "assistant").length
-      },
-      current() {
-        const route = context.ui.router.current()
-        return route.type === "session" ? route.sessionID : undefined
-      },
+      spoken,
+      current: routeSession,
       windowSession: () => windowSession(),
-      notify(message, variant, title, duration) {
-        tell(message, variant as ToastVariant, title, duration)
+      notify(notice) {
+        tell(notice.message, notice.variant, notice.title, notice.duration)
       },
       raise(sessionID) {
         showWindow(sessionID)
@@ -138,7 +136,7 @@ export default {
             state={() => view(sessionID)}
             syntax={syntax}
             rows={() => rows()}
-            sessionMoved={() => movedSinceLast(view(sessionID).turns, thread.spoken(sessionID))}
+            sessionMoved={() => movedSinceLast(view(sessionID).turns, spoken(sessionID))}
             remember={(draft, place) => thread.remember(sessionID, draft, place)}
             ask={(question) => thread.ask(sessionID, question)}
             clear={() => thread.clear(sessionID)}
@@ -193,7 +191,7 @@ export default {
           commands: [
             {
               id: "session.aside.open",
-              bind: "ctrl+up",
+              bind: SESSION_OPEN_BIND,
               title: "Open the side thread",
               description: "The follow-up window for this session, with nothing asked",
               group: "Session",

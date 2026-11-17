@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { createThread, type GenerateCall, type Notice, type Thread } from "../src/thread.ts"
+import { createSessionThread, type GenerateCall, type Notice, type SessionThread } from "../src/thread.ts"
 import { stateOf, type SideState, type Sides } from "../src/state.ts"
 
 const a = "ses_a"
@@ -26,7 +26,7 @@ const flush = async () => {
 }
 
 type Harness = {
-  readonly thread: Thread
+  readonly thread: SessionThread
   readonly view: (sessionID: string) => SideState
   readonly published: () => Sides
   readonly calls: () => readonly GenerateCall[]
@@ -53,7 +53,7 @@ const harness = (): Harness => {
   let windowID: string | undefined
   let spokenCount = 0
 
-  const thread = createThread({
+  const thread = createSessionThread({
     generate(sessionID, prompt, signal) {
       calls.push({ sessionID, prompt, signal })
       const call = deferred<{ text: string }>()
@@ -69,8 +69,8 @@ const harness = (): Harness => {
     spoken: () => spokenCount,
     current: () => currentID,
     windowSession: () => windowID,
-    notify(message, variant, title, duration) {
-      notices.push({ message, variant, title, duration })
+    notify(notice) {
+      notices.push(notice)
     },
     raise(sessionID) {
       raised.push(sessionID)

@@ -35,10 +35,10 @@ import { COMPOSER_ROWS, panelHeights } from "./layout.ts"
 import { RAIL } from "./rail.ts"
 import { createReading, type ReadingView, type Scrollbox } from "./reading.ts"
 import { HEADER_GAP, HEADER_PAD, HEADER_TITLE, CLOSE_LABEL, headerRow, type HeaderRow } from "./header.ts"
-import { emptyPointer, pointerAt, samePointer, type PointerResult, type PointerSurface } from "./pointer.ts"
+import { emptyPointer, pointerAt, samePointer, type AnswerPointer, type PointerSurface } from "./pointer.ts"
 import { NOT_BROWSING, recalled, type Browse } from "./history.ts"
 import { QUICK_PROMPTS, nextChoice, quickCardDress, quickCardRows, quickCardWidth } from "./quick.ts"
-import { createPlayback, type Timer } from "./playback.ts"
+import { createAnswerPlayback, type Timer } from "./playback.ts"
 import { gapBelow, type Failure, type Reading, type SideState } from "./state.ts"
 
 type Theme = Plugin.Context["theme"]
@@ -172,7 +172,7 @@ function Turn(props: {
 
   let blocks: MarkdownRenderable | undefined
   let answer: BoxRenderable | undefined
-  const [pointer, setPointer] = createSignal<PointerResult>(emptyPointer, { equals: samePointer })
+  const [pointer, setPointer] = createSignal<AnswerPointer>(emptyPointer, { equals: samePointer })
 
   const surface = (): PointerSurface => ({ answer, markdown: blocks })
 
@@ -542,7 +542,11 @@ export function ThreadDialog(props: {
       return () => clearInterval(id)
     },
   }
-  const playback = createPlayback(() => props.state().turns.map((item) => item.turn), timer)
+  const playback = createAnswerPlayback(
+    props.sessionID,
+    () => props.state().turns.map((item) => item.turn),
+    timer,
+  )
   const answerText = (index: number) => {
     revealed()
     return playback.text(index)
