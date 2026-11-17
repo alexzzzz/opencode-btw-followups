@@ -26,7 +26,8 @@ import {
   keyHints,
   type Hint,
 } from "./footer.ts"
-import { COMPOSER_ROWS, listTranscriptRows, RAIL } from "./layout.ts"
+import { COMPOSER_ROWS, RAIL } from "./layout.ts"
+import { createReading, transcriptCap, type ReadingView, type Scrollbox } from "./reading.ts"
 import { HEADER_GAP, HEADER_PAD, HEADER_TITLE, CLOSE_LABEL, headerRow, type HeaderRow } from "./header.ts"
 import { blockRow, blockText, blockTextOf, type AnswerToken, type BlockOwner, type BlockPlace } from "./block.ts"
 import { NOT_BROWSING, recalled, type Browse } from "./history.ts"
@@ -565,11 +566,44 @@ export function ThreadDialog(props: {
   let field: TextareaRenderable | undefined
   let scroller: ScrollBoxRenderable | undefined
   let panel: BoxRenderable | undefined
-  let place = props.state().place
   let held: BoxRenderable | undefined
-  let holding = false
-  let wasPlaying = false
-  let scrolledByHand = false
+
+  const reading = createReading(props.state().place, props.state().turns.length)
+  const sameView = (before: ReadingView, now: ReadingView) =>
+    before.above === now.above &&
+    before.below === now.below &&
+    before.newAnswers === now.newAnswers &&
+    before.hold === now.hold &&
+    before.place === now.place
+  const [readingView, setReadingView] = createSignal(reading.view(), { equals: sameView })
+  const sync = () => setReadingView(reading.view())
+  const device: Scrollbox = {
+    get scrollTop() {
+      return scroller?.scrollTop ?? 0
+    },
+    get height() {
+      return scroller?.height ?? 0
+    },
+    get scrollHeight() {
+      return scroller?.scrollHeight ?? 0
+    },
+    get screenY() {
+      return held?.screenY ?? 0
+    },
+    get viewport() {
+      return { screenY: scroller?.viewport.screenY ?? 0 }
+    },
+    get stickyScroll() {
+      return scroller?.stickyScroll ?? false
+    },
+    set stickyScroll(value: boolean) {
+      if (scroller) scroller.stickyScroll = value
+    },
+    scrollTo(top: number) {
+      scroller?.scrollTo(top)
+    },
+  }
+  const box = (): Scrollbox | undefined => (scroller ? device : undefined)
 
   const reveal = useAnswerReveal(props.state, props.played, props.markPlayed)
   const frame = useSpinnerFrame(() => Boolean(props.state().active))
@@ -587,79 +621,42 @@ export function ThreadDialog(props: {
   )
 
   onCleanup(() => {
-    const box = scroller
     const typed = browse().index === null ? field?.plainText ?? "" : browse().draft
+    const scrolled = box()
     props.remember(
       typed,
-      box
-        ? { top: Math.round(box.scrollTop), height: box.height, scrollHeight: box.scrollHeight }
-        : place,
+      scrolled
+        ? {
+            top: Math.round(scrolled.scrollTop),
+            height: scrolled.height,
+            scrollHeight: scrolled.scrollHeight,
+          }
+        : reading.view().place,
     )
   })
 
-  const [above, setAbove] = createSignal(0)
-  const [below, setBelow] = createSignal(0)
-  const [newAnswers, setNewAnswers] = createSignal(0)
   const [typed, setTyped] = createSignal(false)
-  let seen = props.state().turns.length
-
-  const atEnd = () => {
-    const box = scroller
-    return box === undefined || box.scrollTop + box.height >= box.scrollHeight - 2
-  }
-
-  const readToEnd = () => {
-    seen = props.state().turns.length
-    setNewAnswers(0)
-  }
-
-  const measure = () => {
-    setHeight(panel?.height ?? 0)
-    const box = scroller
-    if (!box) return
-    const saved = place
-    if (saved && box.scrollHeight >= saved.scrollHeight) {
-      place = undefined
-      box.scrollTo(saved.top + saved.height >= saved.scrollHeight - 2 ? box.scrollHeight : saved.top)
-    }
-    const hidden = Math.max(0, box.scrollHeight - box.height)
-    const top = Math.max(0, Math.min(hidden, Math.round(box.scrollTop)))
-    setAbove(top)
-    setBelow(hidden - top)
-  }
 
   const scrollToEnd = () => {
-    const box = scroller
-    if (!box) return
-    scrolledByHand = true
-    box.scrollTo(Math.max(0, box.scrollHeight))
-    readToEnd()
-    measure()
+    const scrolled = box()
+    if (!scrolled) return
+    scrolled.scrollTo(scrolled.scrollHeight)
+    reading.onScroll(scrolled, props.state().turns.length)
+    sync()
   }
 
   const onScroll = () => {
-    scrolledByHand = true
-    measure()
-    if (atEnd()) readToEnd()
+    const scrolled = box()
+    if (!scrolled) return
+    reading.onScroll(scrolled, props.state().turns.length)
+    sync()
   }
 
   const hold = () => {
-    const box = scroller
-    if (!box) return
-    const playing = reveal.revealing()
-    if (playing && !wasPlaying) {
-      holding = atEnd()
-      scrolledByHand = false
-    }
-    wasPlaying = playing
-    if (playing && holding && !scrolledByHand && held) {
-      if (box.stickyScroll) box.stickyScroll = false
-      const start = Math.round(box.scrollTop + held.screenY - box.viewport.screenY)
-      const most = Math.max(0, box.scrollHeight - box.height)
-      box.scrollTo(Math.max(0, Math.min(most, start)))
-      return
-    }
-    if (!box.stickyScroll) box.stickyScroll = true
+    const scrolled = box()
+    if (!scrolled) return
+    reading.onFrame(scrolled, reveal.revealing(), held !== undefined)
+    sync()
   }
 
   const noteTyped = () => setTyped((field?.plainText.length ?? 0) > 0)
@@ -667,6 +664,10 @@ export function ThreadDialog(props: {
   onMount(() => {
     context.renderer.on("frame", hold)
     context.renderer.on("frame", noteTyped)
+    queueMicrotask(() => {
+      reading.entered(box())
+      sync()
+    })
   })
 
   onCleanup(() => {
@@ -678,30 +679,27 @@ export function ThreadDialog(props: {
     props.state()
     props.limit()
     reveal.shown()
-    queueMicrotask(measure)
+    queueMicrotask(() => setHeight(panel?.height ?? 0))
   })
 
   createEffect(() => {
     const count = props.state().turns.length
     if (count === 0) {
-      seen = 0
-      setNewAnswers(0)
+      reading.onAnswer(count, box())
+      sync()
       return
     }
     queueMicrotask(() => {
-      if (atEnd()) {
-        readToEnd()
-        return
-      }
-      const missed = count - seen
-      if (missed > 0) setNewAnswers(missed)
+      reading.onAnswer(count, box())
+      sync()
     })
   })
 
   const clearing = useClearConfirm(() => props.state().turns.length, () => {
     held = undefined
-    place = undefined
+    reading.onAnswer(0, box())
     props.clear()
+    sync()
   })
 
   const moveScroller =
@@ -721,7 +719,6 @@ export function ThreadDialog(props: {
     setBrowse(move.browse)
     box.setText(move.text)
     box.cursorOffset = move.cursor
-    queueMicrotask(measure)
     return true
   }
 
@@ -901,7 +898,7 @@ export function ThreadDialog(props: {
 
   const countText = () => countLabel(turnCount(), props.state().pending.length)
   const copyText = () => copyLabel(turnCount())
-  const rightText = () => belowLabel(newAnswers(), below())
+  const rightText = () => belowLabel(readingView().newAnswers, readingView().below)
   const confirmText = () => clearLabel(turnCount(), width())
   const hintTier = () =>
     keyHints({
@@ -910,15 +907,20 @@ export function ThreadDialog(props: {
       right: rightText(),
       mode: footerMode(props.state().active !== undefined, typed()),
       canClear: turnCount() > 0,
-      canJump: above() > 0 || below() > 0,
+      canJump: readingView().above > 0 || readingView().below > 0,
     })
-  const header = () => headerRow(width(), countText(), above(), QUICK_PROMPTS.length, listed())
+  const header = () =>
+    headerRow(width(), countText(), readingView().above, QUICK_PROMPTS.length, listed())
   const listRoom = () => Math.max(0, height() - 2)
   const cardRows = () => quickCardRows(QUICK_PROMPTS.length)
-  const transcriptCap = () =>
-    listed()
-      ? listTranscriptRows(props.rows(), field?.height ?? 1, cardRows())
-      : props.limit()
+  const cap = () =>
+    transcriptCap({
+      listed: listed(),
+      rows: props.rows(),
+      composerRows: field?.height ?? 1,
+      needed: cardRows(),
+      limit: props.limit(),
+    })
 
   const activeQuestion = () => props.state().active ?? ""
   const model = () => modelName(context.data, props.sessionID)
@@ -968,8 +970,8 @@ export function ThreadDialog(props: {
         ref={(element) => {
           scroller = element
         }}
-        maxHeight={transcriptCap()}
-        minHeight={listed() ? Math.min(cardRows(), transcriptCap()) : 0}
+        maxHeight={cap().max}
+        minHeight={cap().min}
         stickyScroll
         stickyStart="bottom"
         contentOptions={{ minHeight: 0 }}
@@ -1077,7 +1079,7 @@ export function ThreadDialog(props: {
         onCopy={props.copy}
         hints={hintTier}
         right={rightText}
-        highlight={() => newAnswers() > 0}
+        highlight={() => readingView().newAnswers > 0}
         onRight={scrollToEnd}
       />
     </box>

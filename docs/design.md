@@ -431,6 +431,10 @@ above.
 
 ## Holding the question at the top
 
+The machine below — the hold, the sticky-scroll switching, the manual-scroll release, the notice
+and the reading position restored on reopen — lives in `src/reading.ts`. The dialog builds a plain
+numeric scrollbox adapter and consumes its `view`. `test/reading.test.ts` holds the rules.
+
 The transcript follows the bottom, which is what a reader wants while a short answer is written
 out: the newest rows stay in view. A long answer is the case that breaks it, because the
 following pushes the question it answers out of the window while the reader is still on it. The
