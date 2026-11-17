@@ -34,7 +34,7 @@ import {
 import { COMPOSER_ROWS, RAIL } from "./layout.ts"
 import { createReading, transcriptCap, type ReadingView, type Scrollbox } from "./reading.ts"
 import { HEADER_GAP, HEADER_PAD, HEADER_TITLE, CLOSE_LABEL, headerRow, type HeaderRow } from "./header.ts"
-import { blockRow, blockText, blockTextOf, type AnswerToken, type BlockOwner, type BlockPlace } from "./block.ts"
+import { emptyPointer, pointerAt, samePointer, type PointerResult, type PointerSurface } from "./pointer.ts"
 import { NOT_BROWSING, recalled, type Browse } from "./history.ts"
 import { QUICK_PROMPTS, nextChoice, quickCardDress, quickCardRows, quickCardWidth } from "./quick.ts"
 import { createPlayback, type Timer } from "./playback.ts"
@@ -171,37 +171,20 @@ function Turn(props: {
 
   let blocks: MarkdownRenderable | undefined
   let answer: BoxRenderable | undefined
-  const [hovered, setHovered] = createSignal<BlockPlace | undefined>(undefined, {
-    equals: (before, now) => before?.top === now?.top && before?.height === now?.height,
-  })
+  const [pointer, setPointer] = createSignal<PointerResult>(emptyPointer, { equals: samePointer })
 
-  const track = (event: MouseEvent) => {
-    if (props.selecting()) {
-      setHovered(undefined)
-      return
-    }
-    const inside =
-      answer !== undefined &&
-      event.x >= answer.x &&
-      event.x < answer.x + answer.width &&
-      event.y >= answer.y &&
-      event.y < answer.y + answer.height
-    setHovered(inside ? blockRow(blocks, event.y) : undefined)
-  }
+  const surface = (): PointerSurface => ({ answer, markdown: blocks })
 
-  const rail = () => {
-    const place = hovered()
-    if (place === undefined) return ""
-    return `${"\n".repeat(place.top)}${`${RAIL}\n`.repeat(place.height).trimEnd()}`
-  }
+  const track = (event: MouseEvent) => setPointer(pointerAt(event, surface(), props.selecting))
 
-  const clickable = (token: unknown, context: RenderNodeContext) => {
+  const rail = () => pointer().rail
+
+  const clickable = (_token: unknown, context: RenderNodeContext) => {
     const renderable = context.defaultRender()
     if (!renderable) return renderable
-    const fallback = blockText(token as AnswerToken) ?? ""
-    renderable.onMouseUp = () => {
-      const text = blockTextOf(renderable.parent as BlockOwner | null, renderable, fallback)
-      if (text !== "") props.copy(text)
+    renderable.onMouseUp = (event: MouseEvent) => {
+      const result = pointerAt(event, surface(), props.selecting)
+      if (result.copy !== "") props.copy(result.copy)
     }
     return renderable
   }
@@ -234,7 +217,7 @@ function Turn(props: {
             paddingRight={2}
             onMouseMove={track}
             onMouseOut={track}
-            onMouseScroll={() => setHovered(undefined)}
+            onMouseScroll={() => setPointer(emptyPointer)}
           >
             <box width={1} flexShrink={0}>
               <text fg={muted()} wrapMode="none">{rail()}</text>
