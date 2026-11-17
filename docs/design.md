@@ -401,6 +401,10 @@ The evidence was taken with the same renderer, a 60-cell terminal and the same m
 
 ## The answer as it arrives
 
+The play below — the guard, the played memory, the first-shown choice and the step arithmetic —
+lives in `src/playback.ts`. The dialog injects a timer and consumes `text` and `revealing`;
+`test/playback.test.ts` holds the rules and the shipped regressions.
+
 `session.generate` returns the finished text in one response, so the newest answer is written
 out on a timer rather than streamed. The step is one character until an answer passes ninety,
 and then a ninety-fifth of it, so every answer takes about a second and a half however long it
@@ -410,7 +414,7 @@ one write had nothing under the question until the timer ran.
 
 Only the newest turn is written out again. An older one is drawn whole, and a window reopened
 over a thread draws every turn whole, so a half-revealed answer never leaves markdown's control
-characters on screen. The pacing is in `src/reveal.ts` and `test/reveal.test.ts` holds it.
+characters on screen.
 
 The reveal is paid once per answer. The newest turn is written out whether the window was open
 when it landed or opened afterwards, and the plugin remembers which answers it has played, so a
@@ -421,9 +425,9 @@ The trap is that the effect behind the reveal runs on every write to the side st
 when the turn count changes. An answer lands as two writes, the turn itself and the spinner
 going out, and a probe put them two milliseconds apart: the first started the play at fourteen
 characters and the second, reading the answer as already played, drew all twelve hundred at once.
-The window therefore remembers the turn it is playing and returns early for later runs over the
-same one. That memory is the window's own; the mark of a played answer is a `WeakSet` of turns
-beside the thread in `src/tui.tsx`, because a fresh window has to know what an earlier one played.
+The playback module therefore remembers the turn it is playing and returns early for later runs
+over the same one. Its played memory lives beside the pacing in `src/playback.ts` rather than in
+the window, because a fresh window has to know what an earlier one played.
 
 The reveal is also what keeps the markdown of a finished answer right: a later write rebuilds
 the list block, and the block picks the syntax style up on the way, which is the case described

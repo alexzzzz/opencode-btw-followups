@@ -138,8 +138,6 @@ export default {
             limit={() => transcriptRows(rows())}
             rows={() => rows()}
             sessionMoved={() => movedSinceLast(view(sessionID).turns, thread.spoken(sessionID))}
-            played={(item) => thread.played(item)}
-            markPlayed={(item) => thread.markPlayed(item)}
             remember={(draft, place) => thread.remember(sessionID, draft, place)}
             ask={(question) => thread.ask(sessionID, question)}
             clear={() => thread.clear(sessionID)}
