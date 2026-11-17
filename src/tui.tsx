@@ -1,42 +1,21 @@
 import { createSignal, Show } from "solid-js"
 import type { Plugin } from "@opencode/plugin/tui"
-import {
-  answered,
-  change,
-  cleared,
-  forget,
-  movedSinceLast,
-  showsBadge,
-  stateOf,
-  type SideState,
-  type Sides,
-  type SideTurn,
-} from "./state.ts"
+import { createThread, type Thread } from "./thread.ts"
 import { copiedLabel } from "./block.ts"
-import { remembered } from "./history.ts"
 import { opensFromSession } from "./keys.ts"
 import { createSyntaxStyle } from "./syntax.ts"
 import { transcriptRows } from "./layout.ts"
-import { thread } from "./prompt.ts"
+import { movedSinceLast, showsBadge, stateOf, type Sides } from "./state.ts"
 import { Badge, ThreadDialog } from "./window.tsx"
 
 const ID = "btw-followups.tui"
-
-const EMPTY_ANSWER =
-  "Nothing came back, so this question was not added to the thread. " +
-  "Either the model reached for a tool, which a side question cannot run, " +
-  "or the reply was cut short. Rephrase it and ask again."
 
 type Resizable = {
   on(event: "resize", handler: () => void): void
   off(event: "resize", handler: () => void): void
 }
 
-type SendOutcome = "answered" | "empty" | "failed" | "dropped"
-
 type ToastVariant = "info" | "success" | "warning" | "error"
-
-const errorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error))
 
 export default {
   id: ID,
@@ -47,26 +26,10 @@ export default {
     const syntax = createSyntaxStyle(context.theme, (context.renderer as any).nativeScene)
 
     const view = (sessionID: string) => stateOf(sides(), sessionID)
-    const edit = (sessionID: string, changes: Partial<SideState>) =>
-      setSides((before) => change(before, sessionID, changes))
 
     const resizeEvents = context.renderer as unknown as Resizable
     const followRows = () => setRows(context.renderer.terminalHeight)
     resizeEvents.on("resize", followRows)
-
-    const draining = new Set<string>()
-    const inFlight = new Map<string, AbortController>()
-    const played = new WeakSet<SideTurn>()
-
-    const spokenCount = (sessionID: string) =>
-      context.data.session.message
-        .list(sessionID)
-        .filter((message) => message.type === "user" || message.type === "assistant").length
-
-    const currentSession = () => {
-      const route = context.ui.router.current()
-      return route.type === "session" ? route.sessionID : undefined
-    }
 
     const tell = (message: string, variant: ToastVariant, title = "/btw", duration?: number) => {
       try {
@@ -77,28 +40,6 @@ export default {
           ...(duration === undefined ? {} : { duration }),
         })
       } catch {}
-    }
-
-    const failed = (
-      sessionID: string | undefined,
-      message: string,
-      title?: string,
-      question?: string,
-    ) => {
-      if (sessionID) {
-        edit(sessionID, { failure: { message, title, question } })
-        if (windowSession() === sessionID) return
-      }
-      tell(question ? `${message}\n\nQuestion: ${question}` : message, "error", title, 6000)
-    }
-
-    const unexpected = (sessionID: string | undefined, error: unknown) => {
-      const named = error instanceof Error ? `${error.name}: ${error.message}` : String(error)
-      failed(
-        sessionID,
-        named.trim() || "The side question threw something with no message.",
-        "/btw did not run",
-      )
     }
 
     let lowering = false
@@ -145,11 +86,42 @@ export default {
       )
     }
 
-    const showWindow = (sessionID: string) => {
+    const thread: Thread = createThread({
+      generate(sessionID, prompt, signal) {
+        return context.client.session.generate({ sessionID, prompt }, { signal })
+      },
+      onDeleted(handler) {
+        return context.data.on("session.deleted", (event) => {
+          if (windowSession() === event.data.sessionID) lowerWindow()
+          handler(event.data.sessionID)
+        })
+      },
+      spoken(sessionID) {
+        return context.data.session.message
+          .list(sessionID)
+          .filter((message) => message.type === "user" || message.type === "assistant").length
+      },
+      current() {
+        const route = context.ui.router.current()
+        return route.type === "session" ? route.sessionID : undefined
+      },
+      windowSession: () => windowSession(),
+      notify(message, variant, title, duration) {
+        tell(message, variant as ToastVariant, title, duration)
+      },
+      raise(sessionID) {
+        showWindow(sessionID)
+      },
+      publish(next) {
+        setSides(next)
+      },
+    })
+
+    function showWindow(sessionID: string): boolean {
       if (windowSession() === sessionID) return true
       const height = rows()
       if (transcriptRows(height) === 0) {
-        failed(
+        thread.failed(
           sessionID,
           `This terminal is ${height} rows tall and too short for the window. Make it taller.`,
         )
@@ -165,12 +137,12 @@ export default {
             syntax={syntax}
             limit={() => transcriptRows(rows())}
             rows={() => rows()}
-            sessionMoved={() => movedSinceLast(view(sessionID).turns, spokenCount(sessionID))}
-            played={(item) => played.has(item)}
-            markPlayed={(item) => played.add(item)}
-            remember={(draft, place) => edit(sessionID, { draft, place })}
-            ask={(question) => ask(sessionID, question)}
-            clear={() => setSides((before) => cleared(before, sessionID))}
+            sessionMoved={() => movedSinceLast(view(sessionID).turns, thread.spoken(sessionID))}
+            played={(item) => thread.played(item)}
+            markPlayed={(item) => thread.markPlayed(item)}
+            remember={(draft, place) => thread.remember(sessionID, draft, place)}
+            ask={(question) => thread.ask(sessionID, question)}
+            clear={() => thread.clear(sessionID)}
             close={lowerWindow}
             copy={copy}
             copyBlock={copyBlock}
@@ -179,76 +151,9 @@ export default {
         lowerWindow,
       )
       context.ui.dialog.set({ size: "large", centered: true })
-      if (view(sessionID).pending.length > 0) drain(sessionID)
+      thread.dismiss(sessionID)
+      if (view(sessionID).pending.length > 0) thread.send(sessionID)
       return true
-    }
-
-    const ask = (sessionID: string, question: string) => {
-      const asked = question.trim()
-      if (!asked) return
-      edit(sessionID, {
-        failure: undefined,
-        pending: [...view(sessionID).pending, asked],
-        asked: remembered(view(sessionID).asked, asked),
-      })
-      drain(sessionID)
-    }
-
-    const sendNext = async (sessionID: string): Promise<SendOutcome> => {
-      const { pending, turns } = view(sessionID)
-      const question = pending.join("\n")
-      const earlier = turns.map((item) => item.turn)
-
-      edit(sessionID, { pending: [], active: question })
-      const call = new AbortController()
-      inFlight.set(sessionID, call)
-
-      try {
-        const response = await context.client.session.generate(
-          { sessionID, prompt: thread(earlier, pending) },
-          { signal: call.signal },
-        )
-        const answer = response.text.trim()
-        if (inFlight.get(sessionID) !== call) return "dropped"
-        if (!answer) {
-          failed(sessionID, EMPTY_ANSWER, "No answer came back", question)
-          return "empty"
-        }
-        setSides((before) => answered(before, sessionID, { question, answer }, spokenCount(sessionID)))
-
-        if (currentSession() === sessionID) showWindow(sessionID)
-        return "answered"
-      } catch (error) {
-        if (call.signal.aborted) return "dropped"
-        if (!sides().has(sessionID)) return "dropped"
-        failed(sessionID, errorMessage(error), undefined, question)
-        return "failed"
-      } finally {
-        if (inFlight.get(sessionID) === call) inFlight.delete(sessionID)
-        if (sides().has(sessionID)) edit(sessionID, { active: undefined })
-      }
-    }
-
-    const runQueue = async (sessionID: string) => {
-      try {
-        while (view(sessionID).pending.length > 0) {
-          const outcome = await sendNext(sessionID)
-          if (outcome === "answered") continue
-          if (outcome === "failed") edit(sessionID, { pending: [] })
-          break
-        }
-      } catch (error) {
-        unexpected(sessionID, error)
-      } finally {
-        draining.delete(sessionID)
-        if (view(sessionID).pending.length > 0 && windowSession() === sessionID) drain(sessionID)
-      }
-    }
-
-    const drain = (sessionID: string) => {
-      if (draining.has(sessionID)) return
-      draining.add(sessionID)
-      void runQueue(sessionID)
     }
 
     const openSession = (sessionID: string | undefined, question?: string) => {
@@ -256,17 +161,8 @@ export default {
         tell("Open a session first", "warning")
         return
       }
-      if (view(sessionID).failure !== undefined) edit(sessionID, { failure: undefined })
-      if (showWindow(sessionID) && question?.trim()) ask(sessionID, question)
+      if (showWindow(sessionID) && question?.trim()) thread.ask(sessionID, question)
     }
-
-    const stopWatchingDeletes = context.data.on("session.deleted", (event) => {
-      const sessionID = event.data.sessionID
-      if (windowSession() === sessionID) lowerWindow()
-      inFlight.get(sessionID)?.abort()
-      inFlight.delete(sessionID)
-      setSides((now) => forget(now, sessionID))
-    })
 
     const removeCommand = context.ui.slot({
       append: "app",
@@ -285,9 +181,9 @@ export default {
               slash: { name: "btw", arguments: true },
               run: (input) => {
                 try {
-                  openSession(currentSession(), input?.trim())
+                  openSession(routeSession(), input?.trim())
                 } catch (error) {
-                  unexpected(currentSession(), error)
+                  thread.crash(routeSession(), error)
                 }
               },
             },
@@ -303,13 +199,13 @@ export default {
               description: "The follow-up window for this session, with nothing asked",
               group: "Session",
               palette: true,
-              enabled: () => opensFromSession(currentSession(), windowSession()),
+              enabled: () => opensFromSession(routeSession(), windowSession()),
               run: (_input, event) => {
                 event?.preventDefault()
                 try {
-                  openSession(currentSession())
+                  openSession(routeSession())
                 } catch (error) {
-                  unexpected(currentSession(), error)
+                  thread.crash(routeSession(), error)
                 }
               },
             },
@@ -335,11 +231,14 @@ export default {
       ),
     })
 
+    function routeSession() {
+      const route = context.ui.router.current()
+      return route.type === "session" ? route.sessionID : undefined
+    }
+
     return () => {
       lowerWindow()
-      for (const call of inFlight.values()) call.abort()
-      inFlight.clear()
-      stopWatchingDeletes()
+      thread.dispose()
       resizeEvents.off("resize", followRows)
       removeCommand()
       removeBadge()
