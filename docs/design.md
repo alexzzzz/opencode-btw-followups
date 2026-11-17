@@ -216,6 +216,12 @@ is new since the previous answer, which is the question a reader of a thread com
 They sit behind one marker in the header of the window: the marker opens the list of all of
 them, centred in the panel, floating over the transcript.
 
+The rows the transcript may take are decided in `src/layout.ts`: it takes the terminal rows,
+whether the list is open, the composer's current rows and the rows the card needs, and returns
+ready maximum and minimum heights. The arithmetic behind them stays inside the module, so the
+window and the command that opens it ask a decision rather than carry the constants.
+`test/layout.test.ts` holds the rules.
+
 The evidence was taken against OpenCode 2.1.2 and `@opentui/core` 0.5.14.
 
 - The panel is the host's `large` dialog, which is 88 cells wide
@@ -372,7 +378,7 @@ renderable in `internalBlockMode: "top-level"`, and its mock mouse.
 
 A vertical rail appears in the gutter left of the block the pointer is on, so the piece a click
 would take is the piece the reader sees marked. It is the same glyph a question's rail uses
-(`RAIL` in `src/layout.ts`), because the two rails are the same kind of thing: a line that says
+(`RAIL` in `src/rail.ts`), because the two rails are the same kind of thing: a line that says
 what the row belongs to. The tone is not the question's: the accent already means "this is what
 you asked", so the answer's rail is drawn in `text.muted`, the tone the footer and the counts
 are drawn in, and a reader never has to tell two accents apart.

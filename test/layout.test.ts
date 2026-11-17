@@ -1,55 +1,66 @@
 import { describe, expect, test } from "bun:test"
-import {
-  COMPOSER_ROWS,
-  MIN_PANEL,
-  PANEL_CHROME,
-  listTranscriptRows,
-  transcriptRows,
-} from "../src/layout.ts"
+import { panelHeights } from "../src/layout.ts"
 
-describe("transcriptRows", () => {
-  test("the panel fits the terminal at every height that can hold it", () => {
-    for (let rows = MIN_PANEL; rows <= 200; rows += 1) {
-      expect(transcriptRows(rows) + PANEL_CHROME + COMPOSER_ROWS).toBeLessThanOrEqual(rows)
-    }
+const CHROME = 8
+
+describe("panelHeights", () => {
+  test("a closed list asks for the transcript's share and no minimum", () => {
+    expect(panelHeights({ rows: 100, listed: false, composerRows: 6, needed: 8 })).toEqual({
+      maxHeight: 60,
+      minHeight: 0,
+    })
+    expect(panelHeights({ rows: 50, listed: false, composerRows: 1, needed: 8 })).toEqual({
+      maxHeight: 30,
+      minHeight: 0,
+    })
   })
 
-  test("a tall terminal leaves the panel clear of both edges", () => {
-    expect(transcriptRows(100)).toBe(60)
-    expect(transcriptRows(50)).toBe(30)
+  test("a terminal too short for the panel gets no rows", () => {
+    expect(panelHeights({ rows: 13, listed: false, composerRows: 6, needed: 8 })).toEqual({
+      maxHeight: 0,
+      minHeight: 0,
+    })
+    expect(panelHeights({ rows: 14, listed: true, composerRows: 6, needed: 8 })).toEqual({
+      maxHeight: 0,
+      minHeight: 0,
+    })
   })
 
-  test("a short terminal gives the transcript the room that is left", () => {
-    expect(transcriptRows(20)).toBe(6)
+  test("an open list takes only the leftover rows it needs", () => {
+    expect(panelHeights({ rows: 17, listed: true, composerRows: 1, needed: 10 })).toEqual({
+      maxHeight: 8,
+      minHeight: 8,
+    })
+    expect(panelHeights({ rows: 17, listed: true, composerRows: 1, needed: 4 })).toEqual({
+      maxHeight: 4,
+      minHeight: 4,
+    })
+    expect(panelHeights({ rows: 100, listed: true, composerRows: 1, needed: 10 })).toEqual({
+      maxHeight: 60,
+      minHeight: 10,
+    })
   })
 
-  test("a terminal too short to hold the panel is refused rather than overflowed", () => {
-    expect(transcriptRows(MIN_PANEL - 1)).toBe(0)
-    expect(transcriptRows(4)).toBe(0)
+  test("a composer at its cap leaves the list no blank row", () => {
+    expect(panelHeights({ rows: 20, listed: true, composerRows: 6, needed: 10 })).toEqual({
+      maxHeight: 6,
+      minHeight: 6,
+    })
+    expect(panelHeights({ rows: 17, listed: true, composerRows: 6, needed: 10 })).toEqual({
+      maxHeight: 3,
+      minHeight: 3,
+    })
   })
 
-  test("the shortest terminal that opens is the one above MIN_PANEL", () => {
-    expect(transcriptRows(MIN_PANEL)).toBe(0)
-    expect(transcriptRows(MIN_PANEL + 1)).toBe(1)
-  })
-})
-
-describe("listTranscriptRows", () => {
-  test("the list grows the transcript into the room a short composer leaves", () => {
-    expect(listTranscriptRows(17, 1, 10)).toBe(8)
-  })
-
-  test("a tall terminal keeps the share the transcript already had", () => {
-    expect(listTranscriptRows(100, 1, 10)).toBe(transcriptRows(100))
-  })
-
-  test("a composer at its tallest leaves nothing to grow into", () => {
-    expect(listTranscriptRows(20, COMPOSER_ROWS, 10)).toBe(transcriptRows(20))
-  })
-
-  test("the growth never takes the panel off the terminal", () => {
-    for (let rows = MIN_PANEL; rows <= 60; rows += 1) {
-      expect(listTranscriptRows(rows, 1, 10) + PANEL_CHROME + 1).toBeLessThanOrEqual(rows)
+  test("the panel never exceeds the terminal it is given", () => {
+    for (let rows = 14; rows <= 200; rows += 1) {
+      for (const composerRows of [1, 3, 6]) {
+        for (const listed of [false, true]) {
+          const { maxHeight, minHeight } = panelHeights({ rows, listed, composerRows, needed: 10 })
+          expect(maxHeight + CHROME + composerRows).toBeLessThanOrEqual(rows)
+          expect(minHeight).toBeLessThanOrEqual(maxHeight)
+        }
+      }
     }
   })
 })

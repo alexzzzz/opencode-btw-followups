@@ -1,21 +1,38 @@
-export const PANEL_CHROME = 8
-
 export const COMPOSER_ROWS = 6
 
-export const MIN_PANEL = PANEL_CHROME + COMPOSER_ROWS
+const PANEL_CHROME = 8
 
-export const RAIL = "▎"
+const MIN_PANEL = PANEL_CHROME + COMPOSER_ROWS
 
 const TRANSCRIPT_SHARE = 0.6
 
-export const transcriptRows = (terminalRows: number) => {
+const transcriptRows = (terminalRows: number) => {
   const share = Math.floor(terminalRows * TRANSCRIPT_SHARE)
   const leftOver = terminalRows - MIN_PANEL
   return Math.max(0, Math.min(share, leftOver))
 }
 
-export const listTranscriptRows = (terminalRows: number, composerRows: number, needed: number) => {
+const listTranscriptRows = (terminalRows: number, composerRows: number, needed: number) => {
   const share = Math.floor(terminalRows * TRANSCRIPT_SHARE)
   const leftOver = terminalRows - PANEL_CHROME - composerRows
   return Math.max(transcriptRows(terminalRows), Math.min(needed, share, leftOver))
+}
+
+export type PanelInput = {
+  readonly rows: number
+  readonly listed: boolean
+  readonly composerRows: number
+  readonly needed: number
+}
+
+export type PanelHeights = {
+  readonly maxHeight: number
+  readonly minHeight: number
+}
+
+export const panelHeights = (input: PanelInput): PanelHeights => {
+  const max = input.listed
+    ? listTranscriptRows(input.rows, input.composerRows, input.needed)
+    : transcriptRows(input.rows)
+  return { maxHeight: max, minHeight: input.listed ? Math.min(input.needed, max) : 0 }
 }

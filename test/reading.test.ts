@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test"
-import { createReading, transcriptCap } from "../src/reading.ts"
+import { createReading } from "../src/reading.ts"
 import type { Scrollbox } from "../src/reading.ts"
-import { listTranscriptRows } from "../src/layout.ts"
 import type { Reading } from "../src/state.ts"
 
 type Probe = {
@@ -148,22 +147,5 @@ describe("restoring the reading position", () => {
     const reading = createReading({ top: 90, height: 10, scrollHeight: 100 }, 1)
     reading.entered(box)
     expect(scrolled).toEqual([100])
-  })
-})
-
-describe("transcriptCap", () => {
-  test("the closed list takes the limit and asks for no minimum", () => {
-    expect(transcriptCap({ listed: false, rows: 40, composerRows: 1, needed: 8, limit: 24 })).toEqual({
-      max: 24,
-      min: 0,
-    })
-  })
-
-  test("the open list grows the transcript into the room it leaves", () => {
-    const max = listTranscriptRows(17, 1, 10)
-    expect(transcriptCap({ listed: true, rows: 17, composerRows: 1, needed: 10, limit: 6 })).toEqual({
-      max,
-      min: Math.min(10, max),
-    })
   })
 })
