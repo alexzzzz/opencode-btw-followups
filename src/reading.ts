@@ -1,4 +1,3 @@
-import { listTranscriptRows } from "./layout.ts"
 import type { Reading } from "./state.ts"
 
 export type Scrollbox = {
@@ -17,21 +16,6 @@ export type ReadingView = {
   readonly newAnswers: number
   readonly hold: boolean
   readonly place: Reading | undefined
-}
-
-export type CapInput = {
-  readonly listed: boolean
-  readonly rows: number
-  readonly composerRows: number
-  readonly needed: number
-  readonly limit: number
-}
-
-export const transcriptCap = (input: CapInput) => {
-  const max = input.listed
-    ? listTranscriptRows(input.rows, input.composerRows, input.needed)
-    : input.limit
-  return { max, min: input.listed ? Math.min(input.needed, max) : 0 }
 }
 
 export const createReading = (place: Reading | undefined, turns: number) => {

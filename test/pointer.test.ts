@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { RAIL } from "../src/layout.ts"
+import { RAIL } from "../src/rail.ts"
 import {
   copiedLabel,
   pointerAt,

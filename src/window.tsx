@@ -31,8 +31,9 @@ import {
   FOOTER_PAD,
   footerHints,
 } from "./footer.ts"
-import { COMPOSER_ROWS, RAIL } from "./layout.ts"
-import { createReading, transcriptCap, type ReadingView, type Scrollbox } from "./reading.ts"
+import { COMPOSER_ROWS, panelHeights } from "./layout.ts"
+import { RAIL } from "./rail.ts"
+import { createReading, type ReadingView, type Scrollbox } from "./reading.ts"
 import { HEADER_GAP, HEADER_PAD, HEADER_TITLE, CLOSE_LABEL, headerRow, type HeaderRow } from "./header.ts"
 import { emptyPointer, pointerAt, samePointer, type PointerResult, type PointerSurface } from "./pointer.ts"
 import { NOT_BROWSING, recalled, type Browse } from "./history.ts"
@@ -475,7 +476,6 @@ export function ThreadDialog(props: {
   readonly sessionID: string
   readonly state: () => SideState
   readonly syntax: SyntaxStyle
-  readonly limit: () => number
   readonly rows: () => number
   readonly sessionMoved: () => boolean
   readonly remember: (draft: string, place: Reading | undefined) => void
@@ -619,7 +619,7 @@ export function ThreadDialog(props: {
 
   createEffect(() => {
     props.state()
-    props.limit()
+    props.rows()
     revealed()
     queueMicrotask(() => setHeight(panel?.height ?? 0))
   })
@@ -777,13 +777,12 @@ export function ThreadDialog(props: {
     headerRow(width(), countText(), readingView().above, QUICK_PROMPTS.length, listed())
   const listRoom = () => Math.max(0, height() - 2)
   const cardRows = () => quickCardRows(QUICK_PROMPTS.length)
-  const cap = () =>
-    transcriptCap({
-      listed: listed(),
+  const heights = () =>
+    panelHeights({
       rows: props.rows(),
+      listed: listed(),
       composerRows: field?.height ?? 1,
       needed: cardRows(),
-      limit: props.limit(),
     })
 
   const activeQuestion = () => props.state().active ?? ""
@@ -834,8 +833,8 @@ export function ThreadDialog(props: {
         ref={(element) => {
           scroller = element
         }}
-        maxHeight={cap().max}
-        minHeight={cap().min}
+        maxHeight={heights().maxHeight}
+        minHeight={heights().minHeight}
         stickyScroll
         stickyStart="bottom"
         contentOptions={{ minHeight: 0 }}

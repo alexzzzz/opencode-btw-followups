@@ -4,7 +4,7 @@ import { createThread, type Thread } from "./thread.ts"
 import { copiedLabel } from "./pointer.ts"
 import { opensFromSession } from "./interaction.ts"
 import { createSyntaxStyle } from "./syntax.ts"
-import { transcriptRows } from "./layout.ts"
+import { panelHeights } from "./layout.ts"
 import { movedSinceLast, showsBadge, stateOf, type Sides } from "./state.ts"
 import { Badge, ThreadDialog } from "./window.tsx"
 
@@ -120,7 +120,9 @@ export default {
     function showWindow(sessionID: string): boolean {
       if (windowSession() === sessionID) return true
       const height = rows()
-      if (transcriptRows(height) === 0) {
+      if (
+        panelHeights({ rows: height, listed: false, composerRows: 0, needed: 0 }).maxHeight === 0
+      ) {
         thread.failed(
           sessionID,
           `This terminal is ${height} rows tall and too short for the window. Make it taller.`,
@@ -135,7 +137,6 @@ export default {
             sessionID={sessionID}
             state={() => view(sessionID)}
             syntax={syntax}
-            limit={() => transcriptRows(rows())}
             rows={() => rows()}
             sessionMoved={() => movedSinceLast(view(sessionID).turns, thread.spoken(sessionID))}
             remember={(draft, place) => thread.remember(sessionID, draft, place)}

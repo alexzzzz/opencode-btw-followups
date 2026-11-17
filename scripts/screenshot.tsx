@@ -10,7 +10,6 @@
 
 import { testRender } from "@opentui/solid"
 import { createSyntaxStyle } from "../src/syntax.ts"
-import { transcriptRows } from "../src/layout.ts"
 import { PluginContextProvider } from "@opencode/plugin/tui"
 import { ThreadDialog } from "../src/window.tsx"
 import { readFileSync } from "node:fs"
@@ -149,7 +148,6 @@ const setup = await testRender(
           sessionID="ses_harness"
           state={state}
           syntax={syntax}
-          limit={() => transcriptRows(ROWS)}
           rows={() => ROWS}
           sessionMoved={() => false}
           played={() => true}
