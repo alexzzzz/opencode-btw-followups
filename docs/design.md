@@ -533,6 +533,12 @@ has already found the answer themselves.
 
 ## The queue behind the window
 
+The lifecycle below — one request in flight, the queue that outlives the window, a clear that keeps
+what was not asked to be dropped, an empty answer becoming a failure, and a deleted session calling
+its request off — lives in `src/thread.ts`. The answer generator and the session-deleted event are
+adapters injected at its seam, and the per-session registries for in-flight, draining and played
+answers are internal. `test/thread.test.ts` holds the rules.
+
 One request at a time per session. The questions asked while one is out go out together as the
 next one, numbered by `thread`, so they are answered as a list rather than as one run-together
 question.
