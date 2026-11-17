@@ -14,7 +14,14 @@ import {
 } from "@opentui/core"
 import type { Plugin } from "@opencode/plugin/tui"
 import { usePlugin } from "@opencode/plugin/tui"
-import { ctrlDown, ctrlUp, type ListEffect } from "./keys.ts"
+import {
+  bindings,
+  type Binding,
+  type Hint,
+  type InteractionMode,
+  type Intent,
+  type ListEffect,
+} from "./interaction.ts"
 import {
   belowLabel,
   clearLabel,
@@ -22,9 +29,7 @@ import {
   countLabel,
   FOOTER_GAP,
   FOOTER_PAD,
-  footerMode,
-  keyHints,
-  type Hint,
+  footerHints,
 } from "./footer.ts"
 import { COMPOSER_ROWS, RAIL } from "./layout.ts"
 import { createReading, transcriptCap, type ReadingView, type Scrollbox } from "./reading.ts"
@@ -701,139 +706,69 @@ export function ThreadDialog(props: {
     box.cursorOffset = direction === 1 ? box.plainText.length : 0
   }
 
+  const mode = (): InteractionMode => ({
+    waiting: props.state().active !== undefined,
+    typed: typed(),
+    listed: listed(),
+    canClear: props.state().turns.length > 0,
+    canJump: readingView().above > 0 || readingView().below > 0,
+  })
+
+  const listRun = (binding: Binding, _input: unknown, event?: KeyEvent) => {
+    event?.preventDefault()
+    const effect = binding.effect()
+    if (effect) applyList(effect)
+  }
+
+  const runs: Record<Intent, (binding: Binding, input: unknown, event?: KeyEvent) => false | void> = {
+    page_up: (_binding, input, event) => moveScroller((box) => box.scrollBy(-1, "viewport"))(input, event),
+    page_down: (_binding, input, event) => moveScroller((box) => box.scrollBy(1, "viewport"))(input, event),
+    home: (_binding, input, event) => moveScroller((box) => box.scrollTo(0))(input, event),
+    end: (_binding, input, event) => moveScroller((box) => box.scrollTo(box.scrollHeight))(input, event),
+    list: listRun,
+    step_down: listRun,
+    clear: (_binding, _input, event) => {
+      if ((field?.plainText.length ?? 0) > 0) return false
+      event?.preventDefault()
+      if (event?.eventType === "repeat" || event?.repeated) return
+      clearing.press()
+    },
+    recall_older: (_binding, _input, event) => {
+      event?.preventDefault()
+      walk(-1)
+    },
+    recall_newer: (_binding, _input, event) => {
+      event?.preventDefault()
+      walk(1)
+    },
+    choose_up: (_binding, _input, event) => {
+      event?.preventDefault()
+      setChosen((index) => nextChoice(index, -1, QUICK_PROMPTS.length))
+    },
+    choose_down: (_binding, _input, event) => {
+      event?.preventDefault()
+      setChosen((index) => nextChoice(index, 1, QUICK_PROMPTS.length))
+    },
+    choose: (_binding, _input, event) => {
+      event?.preventDefault()
+      const question = QUICK_PROMPTS[chosen()]
+      if (question) askQuick(question)
+    },
+    close_list: (_binding, _input, event) => {
+      event?.preventDefault()
+      setListed(false)
+    },
+    queue: () => {},
+  }
+
   context.keymap.layer(() => ({
     mode: "modal",
     priority: 1,
-    commands: [
-      {
-        id: "session.aside.page_up",
-        bind: "pageup",
-        title: "Page up",
-        group: "Dialog",
-        run: moveScroller((box) => box.scrollBy(-1, "viewport")),
-      },
-      {
-        id: "session.aside.page_down",
-        bind: "pagedown",
-        title: "Page down",
-        group: "Dialog",
-        run: moveScroller((box) => box.scrollBy(1, "viewport")),
-      },
-      {
-        id: "session.aside.home",
-        bind: "ctrl+home",
-        title: "First question",
-        group: "Dialog",
-        run: moveScroller((box) => box.scrollTo(0)),
-      },
-      {
-        id: "session.aside.end",
-        bind: "ctrl+end",
-        title: "Newest answer",
-        group: "Dialog",
-        run: moveScroller((box) => box.scrollTo(box.scrollHeight)),
-      },
-      {
-        id: "session.aside.list",
-        bind: "ctrl+up",
-        title: "Quick prompts",
-        group: "Dialog",
-        run: (_input: unknown, event?: KeyEvent) => {
-          event?.preventDefault()
-          applyList(ctrlUp(listed()))
-        },
-      },
-      {
-        id: "session.aside.step_down",
-        bind: "ctrl+down",
-        title: "Close the prompt list or the window",
-        group: "Dialog",
-        run: (_input: unknown, event?: KeyEvent) => {
-          event?.preventDefault()
-          applyList(ctrlDown(listed()))
-        },
-      },
-      {
-        id: "session.aside.clear",
-        bind: "delete",
-        title: "Clear the side thread",
-        group: "Dialog",
-        enabled: () => !listed(),
-        run: (_input: unknown, event?: KeyEvent) => {
-          if ((field?.plainText.length ?? 0) > 0) return false
-          event?.preventDefault()
-          if (event?.eventType === "repeat" || event?.repeated) return
-          clearing.press()
-        },
-      },
-      {
-        id: "session.aside.recall_older",
-        bind: "up",
-        title: "Earlier question",
-        group: "Dialog",
-        enabled: () => !listed(),
-        run: (_input: unknown, event?: KeyEvent) => {
-          event?.preventDefault()
-          walk(-1)
-        },
-      },
-      {
-        id: "session.aside.recall_newer",
-        bind: "down",
-        title: "Later question",
-        group: "Dialog",
-        enabled: () => !listed(),
-        run: (_input: unknown, event?: KeyEvent) => {
-          event?.preventDefault()
-          walk(1)
-        },
-      },
-      {
-        id: "session.aside.choose_up",
-        bind: "up",
-        title: "Previous quick prompt",
-        group: "Dialog",
-        enabled: () => listed(),
-        run: (_input: unknown, event?: KeyEvent) => {
-          event?.preventDefault()
-          setChosen((index) => nextChoice(index, -1, QUICK_PROMPTS.length))
-        },
-      },
-      {
-        id: "session.aside.choose_down",
-        bind: "down",
-        title: "Next quick prompt",
-        group: "Dialog",
-        enabled: () => listed(),
-        run: (_input: unknown, event?: KeyEvent) => {
-          event?.preventDefault()
-          setChosen((index) => nextChoice(index, 1, QUICK_PROMPTS.length))
-        },
-      },
-      {
-        id: "session.aside.choose",
-        bind: "enter",
-        title: "Ask the picked quick prompt",
-        group: "Dialog",
-        enabled: () => listed(),
-        run: (_input: unknown, event?: KeyEvent) => {
-          event?.preventDefault()
-          const question = QUICK_PROMPTS[chosen()]
-          if (question) askQuick(question)
-        },
-      },
-      {
-        id: "session.aside.close_list",
-        bind: "escape",
-        title: "Close the prompt list",
-        group: "Dialog",
-        enabled: () => listed(),
-        run: (_input: unknown, event?: KeyEvent) => {
-          event?.preventDefault()
-          setListed(false)
-        },
-      },
-    ],
+    commands: bindings(mode).map((binding) => ({
+      ...binding,
+      group: "Dialog",
+      run: (input: unknown, event?: KeyEvent) => runs[binding.intent](binding, input, event),
+    })),
   }))
 
   const askQuick = (question: string) => {
@@ -854,15 +789,7 @@ export function ThreadDialog(props: {
   const copyText = () => copyLabel(turnCount())
   const rightText = () => belowLabel(readingView().newAnswers, readingView().below)
   const confirmText = () => clearLabel(turnCount(), width())
-  const hintTier = () =>
-    keyHints({
-      panelWidth: width(),
-      copy: copyText(),
-      right: rightText(),
-      mode: footerMode(props.state().active !== undefined, typed()),
-      canClear: turnCount() > 0,
-      canJump: readingView().above > 0 || readingView().below > 0,
-    })
+  const hintTier = () => footerHints(mode(), width(), copyText(), rightText())
   const header = () =>
     headerRow(width(), countText(), readingView().above, QUICK_PROMPTS.length, listed())
   const listRoom = () => Math.max(0, height() - 2)

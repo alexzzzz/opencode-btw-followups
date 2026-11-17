@@ -473,6 +473,11 @@ do not fit wait below under the footer's `↓ n below`.
 
 ## The footer row
 
+The four modes, the key table and the tier fitting live in `src/interaction.ts`. The footer
+measures the room the row has left and asks the table for its hints; the dialog builds its keymap
+from the same table, so a bind and the hint that names it are one entry and cannot drift apart.
+`test/interaction.test.ts` holds the table and the fitting.
+
 One row, one job. While a clear waits for its second press the row is the question and nothing
 else, because a warning read beside four hints is not read at all.
 
@@ -485,7 +490,8 @@ A hint is never cut short. OpenTUI lays each text out at its own width, so a row
 its room does not clip, it overlaps: a phone-sized terminal gave the dialog about fifty cells,
 which leaves the footer twenty-six beside `nothing to copy`, while the two-hint tier needs
 forty-two. The screenshot that showed it read `nothing to page up/ scrolldele clear t`. That
-arithmetic is in `src/footer.ts` and `test/footer.test.ts` holds it.
+room arithmetic is in `src/footer.ts`; the tiers and their fitting are in `src/interaction.ts`,
+and `test/interaction.test.ts` holds both.
 
 A hint earns its cells only when the reader cannot reach the key by habit. The wheel is the mouse,
 `PageUp` and `PageDown` turn a page in every pane a terminal draws, `Enter` sends a line in the

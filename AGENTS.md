@@ -27,7 +27,7 @@ copy is behind. A change the copy does not hold is a change the window never sho
 - `src/block.ts` turns one top-level block of an answer into the text a click copies, and finds
   the block under the pointer for the rail beside it.
 - `src/prompt.ts`, `src/layout.ts`, `src/quick.ts`, `src/state.ts`, `src/footer.ts`,
-  `src/header.ts`, `src/keys.ts`, `src/reveal.ts` and `src/block.ts` are pure, and `test/`
+  `src/header.ts`, `src/interaction.ts`, `src/reveal.ts` and `src/block.ts` are pure, and `test/`
   covers them.
 - `README.md` is what a user reads.
 - `docs/design.md` holds the measurement behind every rule below, plus the install
@@ -147,7 +147,8 @@ copies drift.
 - Measure the panel width from the dialog's own root box on `onSizeChange`, because the host
   chooses the panel width. The footer fits its hints to that width, longest wording first and
   the next tier down when the panel is too narrow, and draws none rather than one cut short.
-  `src/footer.ts` owns that fitting, and `test/footer.test.ts` holds it in place.
+  `src/footer.ts` measures the room and `src/interaction.ts` owns the table and the tiers, and
+  `test/interaction.test.ts` holds them in place.
 - Name a key only when the reader cannot reach it by habit. `PageUp`, `PageDown`, the wheel,
   `Enter` to send and `Up` for history mean here what they mean in the host prompt, so the row
   leaves them out. What it names is what the host does not teach: `ctrl+home/end jump`, because
@@ -250,8 +251,8 @@ copies drift.
   keeps the arrows, `Home` and `End` for the cursor.
 - Mirror it on `Ctrl+Down`: the list goes down on that key, and the window goes down once the
   list is already down, because `Ctrl+Up` is the way in at both levels and the way out should
-  read the same. The host binds no `Ctrl+Down`, so the key is free. `src/keys.ts` decides both
-  keys and whether the session command may open the window at all, and `test/keys.test.ts` holds
-  it in place.
+  read the same. The host binds no `Ctrl+Down`, so the key is free. `src/interaction.ts` holds both
+  keys in its table and decides whether the session command may open the window at all, and
+  `test/interaction.test.ts` holds it in place.
 - Ask a pick in the side thread, which is what both a click and `Enter` do, because the prompts
   are the window's own and a side question leaves the conversation alone.
