@@ -1,3 +1,5 @@
+import { RAIL } from "./layout.ts"
+
 export type AnswerToken = {
   readonly type: string
   readonly raw?: string
@@ -10,7 +12,32 @@ export type AnswerToken = {
   readonly rows?: readonly (readonly AnswerToken[])[]
 }
 
+export type PointerEvent = {
+  readonly x: number
+  readonly y: number
+}
+
+export type PointerSurface = {
+  readonly answer: unknown
+  readonly markdown: unknown
+}
+
+export type BlockPlace = {
+  readonly top: number
+  readonly height: number
+}
+
+export type PointerResult = {
+  readonly place: BlockPlace | undefined
+  readonly rail: string
+  readonly copy: string
+}
+
+export type SelectionGuard = () => boolean
+
 const SNIPPET = 40
+
+export const emptyPointer: PointerResult = { place: undefined, rail: "", copy: "" }
 
 const LEAVES = new Set(["text", "escape", "codespan", "html"])
 
@@ -66,7 +93,7 @@ const tableText = (table: AnswerToken) => {
   return [...header, ...rows].join("\n")
 }
 
-export const blockText = (token: AnswerToken): string | undefined => {
+const blockText = (token: AnswerToken): string | undefined => {
   switch (token.type) {
     case "space":
     case "hr":
@@ -88,71 +115,91 @@ export const blockText = (token: AnswerToken): string | undefined => {
   }
 }
 
-const firstLine = (text: string) =>
-  text
-    .split("\n")
-    .map((line) => line.trim())
-    .find((line) => line.length > 0) ?? ""
-
-export type BlockState = {
+type BlockState = {
   readonly token: AnswerToken
   readonly renderable: unknown
 }
 
-export type BlockFrame = {
-  readonly y: number
-  readonly height: number
-}
-
-export type BlockOwner = {
+type BlockOwner = {
   readonly y?: number | undefined
   readonly _blockStates?: readonly BlockState[]
 }
 
-export type BlockPlace = {
-  readonly top: number
+type Frame = {
+  readonly x?: number
+  readonly y: number
+  readonly width?: number
   readonly height: number
 }
 
 const frameOf = (renderable: unknown) => {
-  const frame = renderable as BlockFrame | null | undefined
+  const frame = renderable as Frame | null | undefined
   if (!frame || typeof frame.y !== "number" || typeof frame.height !== "number") return undefined
   return frame
 }
 
-const placeOf = (owner: BlockOwner | null | undefined, state: BlockState) => {
+const answerOf = (renderable: unknown) => {
+  const frame = frameOf(renderable)
+  if (!frame || typeof frame.x !== "number" || typeof frame.width !== "number") return undefined
+  return frame as { readonly x: number; readonly y: number; readonly width: number; readonly height: number }
+}
+
+const ownerOf = (renderable: unknown): BlockOwner | undefined => {
+  const owner = renderable as BlockOwner | null | undefined
+  if (!owner || !Array.isArray(owner._blockStates)) return undefined
+  return owner
+}
+
+const placeOf = (owner: BlockOwner | undefined, state: BlockState) => {
   const frame = frameOf(state.renderable)
   if (frame === undefined) return undefined
   return { top: frame.y - (owner?.y ?? frame.y), height: frame.height }
 }
 
-const findBlock = (
-  owner: BlockOwner | null | undefined,
-  match: (state: BlockState) => boolean,
-) => owner?._blockStates?.find(match)
-
-export const blockTextOf = (
-  owner: BlockOwner | null | undefined,
-  renderable: unknown,
-  fallback: string,
-) => {
-  const found = findBlock(owner, (item) => item.renderable === renderable)
-  if (found === undefined) return fallback
-  return blockText(found.token) ?? fallback
+const under = (owner: BlockOwner | undefined, row: number) => {
+  for (const state of owner?._blockStates ?? []) {
+    const frame = frameOf(state.renderable)
+    if (frame && row >= frame.y && row < frame.y + frame.height) {
+      const place = placeOf(owner, state)
+      if (place) return { place, state }
+    }
+  }
+  return undefined
 }
 
-export const blockPlace = (owner: BlockOwner | null | undefined, renderable: unknown) => {
-  const found = findBlock(owner, (item) => item.renderable === renderable)
-  return found === undefined ? undefined : placeOf(owner, found)
+const railOf = (place: BlockPlace) =>
+  `${"\n".repeat(place.top)}${`${RAIL}\n`.repeat(place.height).trimEnd()}`
+
+export const pointerAt = (
+  event: PointerEvent,
+  surface: PointerSurface,
+  selecting: SelectionGuard,
+): PointerResult => {
+  if (selecting()) return emptyPointer
+  const answer = answerOf(surface.answer)
+  if (!answer) return emptyPointer
+  const inside =
+    event.x >= answer.x &&
+    event.x < answer.x + answer.width &&
+    event.y >= answer.y &&
+    event.y < answer.y + answer.height
+  if (!inside) return emptyPointer
+  const found = under(ownerOf(surface.markdown), event.y)
+  if (!found) return emptyPointer
+  return { place: found.place, rail: railOf(found.place), copy: blockText(found.state.token) ?? "" }
 }
 
-export const blockRow = (owner: BlockOwner | null | undefined, row: number) => {
-  const found = findBlock(owner, (item) => {
-    const frame = frameOf(item.renderable)
-    return frame !== undefined && row >= frame.y && row < frame.y + frame.height
-  })
-  return found === undefined ? undefined : placeOf(owner, found)
-}
+export const samePointer = (before: PointerResult, after: PointerResult) =>
+  before.place?.top === after.place?.top &&
+  before.place?.height === after.place?.height &&
+  before.rail === after.rail &&
+  before.copy === after.copy
+
+const firstLine = (text: string) =>
+  text
+    .split("\n")
+    .map((line) => line.trim())
+    .find((line) => line.length > 0) ?? ""
 
 export const copiedLabel = (text: string) => {
   const line = firstLine(text)
