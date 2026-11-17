@@ -10,7 +10,6 @@ import {
   stateOf,
   type SideState,
   type Sides,
-  type SideTurn,
 } from "./state.ts"
 import { copiedLabel } from "./block.ts"
 import { remembered } from "./history.ts"
@@ -56,7 +55,6 @@ export default {
 
     const draining = new Set<string>()
     const inFlight = new Map<string, AbortController>()
-    const played = new WeakSet<SideTurn>()
 
     const spokenCount = (sessionID: string) =>
       context.data.session.message
@@ -166,8 +164,6 @@ export default {
             limit={() => transcriptRows(rows())}
             rows={() => rows()}
             sessionMoved={() => movedSinceLast(view(sessionID).turns, spokenCount(sessionID))}
-            played={(item) => played.has(item)}
-            markPlayed={(item) => played.add(item)}
             remember={(draft, place) => edit(sessionID, { draft, place })}
             ask={(question) => ask(sessionID, question)}
             clear={() => setSides((before) => cleared(before, sessionID))}
