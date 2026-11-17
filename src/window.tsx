@@ -1,4 +1,4 @@
-import { type Accessor, createEffect, createSignal, For, on, onCleanup, onMount, Show } from "solid-js"
+import { type Accessor, createEffect, createSignal, For, onCleanup, onMount, Show } from "solid-js"
 import {
   BorderChars,
   createTextAttributes,
@@ -14,7 +14,14 @@ import {
 } from "@opentui/core"
 import type { Plugin } from "@opencode/plugin/tui"
 import { usePlugin } from "@opencode/plugin/tui"
-import { ctrlDown, ctrlUp, type ListEffect } from "./keys.ts"
+import {
+  bindings,
+  type Binding,
+  type Hint,
+  type InteractionMode,
+  type Intent,
+  type ListEffect,
+} from "./interaction.ts"
 import {
   belowLabel,
   clearLabel,
@@ -22,17 +29,17 @@ import {
   countLabel,
   FOOTER_GAP,
   FOOTER_PAD,
-  footerMode,
-  keyHints,
-  type Hint,
+  footerHints,
 } from "./footer.ts"
-import { COMPOSER_ROWS, listTranscriptRows, RAIL } from "./layout.ts"
+import { COMPOSER_ROWS, panelHeights } from "./layout.ts"
+import { RAIL } from "./rail.ts"
+import { createReading, type ReadingView, type Scrollbox } from "./reading.ts"
 import { HEADER_GAP, HEADER_PAD, HEADER_TITLE, CLOSE_LABEL, headerRow, type HeaderRow } from "./header.ts"
-import { blockRow, blockText, blockTextOf, type AnswerToken, type BlockOwner, type BlockPlace } from "./block.ts"
+import { emptyPointer, pointerAt, samePointer, type AnswerPointer, type PointerSurface } from "./pointer.ts"
 import { NOT_BROWSING, recalled, type Browse } from "./history.ts"
 import { QUICK_PROMPTS, nextChoice, quickCardDress, quickCardRows, quickCardWidth } from "./quick.ts"
-import { firstShown, nextChunk, REVEAL_MS, shownText } from "./reveal.ts"
-import { gapBelow, type Failure, type Reading, type SideState, type SideTurn } from "./state.ts"
+import { createAnswerPlayback, type Timer } from "./playback.ts"
+import { gapBelow, type Failure, type Reading, type SideState } from "./state.ts"
 
 type Theme = Plugin.Context["theme"]
 
@@ -72,65 +79,6 @@ function useSpinnerFrame(running: () => boolean = () => true) {
   })
 
   return frame
-}
-
-function useAnswerReveal(
-  state: () => SideState,
-  played: (item: SideTurn) => boolean,
-  markPlayed: (item: SideTurn) => void,
-) {
-  const start = () => {
-    const last = state().turns.at(-1)
-    return last === undefined
-      ? Number.POSITIVE_INFINITY
-      : firstShown(played(last), last.turn.answer.length)
-  }
-
-  const [shown, setShown] = createSignal(start())
-  let timer: ReturnType<typeof setInterval> | undefined
-  let playing: SideTurn | undefined
-
-  const stop = () => {
-    clearInterval(timer)
-    timer = undefined
-  }
-
-  const play = () => {
-    const last = state().turns.at(-1)
-    if (last === undefined) {
-      stop()
-      return
-    }
-    if (playing === last) return
-    stop()
-    playing = last
-    const answer = last.turn.answer
-    const first = firstShown(played(last), answer.length)
-    setShown(first)
-    if (first >= answer.length) return
-    markPlayed(last)
-    timer = setInterval(() => {
-      const next = nextChunk(shown(), answer.length)
-      setShown(next)
-      if (next >= answer.length) stop()
-    }, REVEAL_MS)
-  }
-
-  createEffect(on(() => state().turns.length, play))
-
-  onCleanup(stop)
-
-  const text = (index: number, answer: string) =>
-    index === state().turns.length - 1 && shown() < answer.length
-      ? shownText(answer, shown())
-      : answer.trimEnd()
-
-  const revealing = () => {
-    const last = state().turns.at(-1)
-    return last !== undefined && shown() < last.turn.answer.length
-  }
-
-  return { shown, text, revealing }
 }
 
 function useClearConfirm(count: () => number, clear: () => void) {
@@ -224,37 +172,20 @@ function Turn(props: {
 
   let blocks: MarkdownRenderable | undefined
   let answer: BoxRenderable | undefined
-  const [hovered, setHovered] = createSignal<BlockPlace | undefined>(undefined, {
-    equals: (before, now) => before?.top === now?.top && before?.height === now?.height,
-  })
+  const [pointer, setPointer] = createSignal<AnswerPointer>(emptyPointer, { equals: samePointer })
 
-  const track = (event: MouseEvent) => {
-    if (props.selecting()) {
-      setHovered(undefined)
-      return
-    }
-    const inside =
-      answer !== undefined &&
-      event.x >= answer.x &&
-      event.x < answer.x + answer.width &&
-      event.y >= answer.y &&
-      event.y < answer.y + answer.height
-    setHovered(inside ? blockRow(blocks, event.y) : undefined)
-  }
+  const surface = (): PointerSurface => ({ answer, markdown: blocks })
 
-  const rail = () => {
-    const place = hovered()
-    if (place === undefined) return ""
-    return `${"\n".repeat(place.top)}${`${RAIL}\n`.repeat(place.height).trimEnd()}`
-  }
+  const track = (event: MouseEvent) => setPointer(pointerAt(event, surface(), props.selecting))
 
-  const clickable = (token: unknown, context: RenderNodeContext) => {
+  const rail = () => pointer().rail
+
+  const clickable = (_token: unknown, context: RenderNodeContext) => {
     const renderable = context.defaultRender()
     if (!renderable) return renderable
-    const fallback = blockText(token as AnswerToken) ?? ""
-    renderable.onMouseUp = () => {
-      const text = blockTextOf(renderable.parent as BlockOwner | null, renderable, fallback)
-      if (text !== "") props.copy(text)
+    renderable.onMouseUp = (event: MouseEvent) => {
+      const result = pointerAt(event, surface(), props.selecting)
+      if (result.copy !== "") props.copy(result.copy)
     }
     return renderable
   }
@@ -287,7 +218,7 @@ function Turn(props: {
             paddingRight={2}
             onMouseMove={track}
             onMouseOut={track}
-            onMouseScroll={() => setHovered(undefined)}
+            onMouseScroll={() => setPointer(emptyPointer)}
           >
             <box width={1} flexShrink={0}>
               <text fg={muted()} wrapMode="none">{rail()}</text>
@@ -545,11 +476,8 @@ export function ThreadDialog(props: {
   readonly sessionID: string
   readonly state: () => SideState
   readonly syntax: SyntaxStyle
-  readonly limit: () => number
   readonly rows: () => number
   readonly sessionMoved: () => boolean
-  readonly played: (item: SideTurn) => boolean
-  readonly markPlayed: (item: SideTurn) => void
   readonly remember: (draft: string, place: Reading | undefined) => void
   readonly ask: (question: string) => void
   readonly clear: () => void
@@ -565,13 +493,64 @@ export function ThreadDialog(props: {
   let field: TextareaRenderable | undefined
   let scroller: ScrollBoxRenderable | undefined
   let panel: BoxRenderable | undefined
-  let place = props.state().place
   let held: BoxRenderable | undefined
-  let holding = false
-  let wasPlaying = false
-  let scrolledByHand = false
 
-  const reveal = useAnswerReveal(props.state, props.played, props.markPlayed)
+  const reading = createReading(props.state().place, props.state().turns.length)
+  const sameView = (before: ReadingView, now: ReadingView) =>
+    before.above === now.above &&
+    before.below === now.below &&
+    before.newAnswers === now.newAnswers &&
+    before.hold === now.hold &&
+    before.place === now.place
+  const [readingView, setReadingView] = createSignal(reading.view(), { equals: sameView })
+  const sync = () => setReadingView(reading.view())
+  const device: Scrollbox = {
+    get scrollTop() {
+      return scroller?.scrollTop ?? 0
+    },
+    get height() {
+      return scroller?.height ?? 0
+    },
+    get scrollHeight() {
+      return scroller?.scrollHeight ?? 0
+    },
+    get screenY() {
+      return held?.screenY ?? 0
+    },
+    get viewport() {
+      return { screenY: scroller?.viewport.screenY ?? 0 }
+    },
+    get stickyScroll() {
+      return scroller?.stickyScroll ?? false
+    },
+    set stickyScroll(value: boolean) {
+      if (scroller) scroller.stickyScroll = value
+    },
+    scrollTo(top: number) {
+      scroller?.scrollTo(top)
+    },
+  }
+  const box = (): Scrollbox | undefined => (scroller ? device : undefined)
+
+  const [revealed, setRevealed] = createSignal(0)
+  const timer: Timer = {
+    every(ms, tick) {
+      const id = setInterval(() => {
+        tick()
+        setRevealed((n) => n + 1)
+      }, ms)
+      return () => clearInterval(id)
+    },
+  }
+  const playback = createAnswerPlayback(
+    props.sessionID,
+    () => props.state().turns.map((item) => item.turn),
+    timer,
+  )
+  const answerText = (index: number) => {
+    revealed()
+    return playback.text(index)
+  }
   const frame = useSpinnerFrame(() => Boolean(props.state().active))
   const [width, setWidth] = createSignal(0)
   const [height, setHeight] = createSignal(0)
@@ -587,79 +566,42 @@ export function ThreadDialog(props: {
   )
 
   onCleanup(() => {
-    const box = scroller
     const typed = browse().index === null ? field?.plainText ?? "" : browse().draft
+    const scrolled = box()
     props.remember(
       typed,
-      box
-        ? { top: Math.round(box.scrollTop), height: box.height, scrollHeight: box.scrollHeight }
-        : place,
+      scrolled
+        ? {
+            top: Math.round(scrolled.scrollTop),
+            height: scrolled.height,
+            scrollHeight: scrolled.scrollHeight,
+          }
+        : reading.view().place,
     )
   })
 
-  const [above, setAbove] = createSignal(0)
-  const [below, setBelow] = createSignal(0)
-  const [newAnswers, setNewAnswers] = createSignal(0)
   const [typed, setTyped] = createSignal(false)
-  let seen = props.state().turns.length
-
-  const atEnd = () => {
-    const box = scroller
-    return box === undefined || box.scrollTop + box.height >= box.scrollHeight - 2
-  }
-
-  const readToEnd = () => {
-    seen = props.state().turns.length
-    setNewAnswers(0)
-  }
-
-  const measure = () => {
-    setHeight(panel?.height ?? 0)
-    const box = scroller
-    if (!box) return
-    const saved = place
-    if (saved && box.scrollHeight >= saved.scrollHeight) {
-      place = undefined
-      box.scrollTo(saved.top + saved.height >= saved.scrollHeight - 2 ? box.scrollHeight : saved.top)
-    }
-    const hidden = Math.max(0, box.scrollHeight - box.height)
-    const top = Math.max(0, Math.min(hidden, Math.round(box.scrollTop)))
-    setAbove(top)
-    setBelow(hidden - top)
-  }
 
   const scrollToEnd = () => {
-    const box = scroller
-    if (!box) return
-    scrolledByHand = true
-    box.scrollTo(Math.max(0, box.scrollHeight))
-    readToEnd()
-    measure()
+    const scrolled = box()
+    if (!scrolled) return
+    scrolled.scrollTo(scrolled.scrollHeight)
+    reading.onScroll(scrolled, props.state().turns.length)
+    sync()
   }
 
   const onScroll = () => {
-    scrolledByHand = true
-    measure()
-    if (atEnd()) readToEnd()
+    const scrolled = box()
+    if (!scrolled) return
+    reading.onScroll(scrolled, props.state().turns.length)
+    sync()
   }
 
   const hold = () => {
-    const box = scroller
-    if (!box) return
-    const playing = reveal.revealing()
-    if (playing && !wasPlaying) {
-      holding = atEnd()
-      scrolledByHand = false
-    }
-    wasPlaying = playing
-    if (playing && holding && !scrolledByHand && held) {
-      if (box.stickyScroll) box.stickyScroll = false
-      const start = Math.round(box.scrollTop + held.screenY - box.viewport.screenY)
-      const most = Math.max(0, box.scrollHeight - box.height)
-      box.scrollTo(Math.max(0, Math.min(most, start)))
-      return
-    }
-    if (!box.stickyScroll) box.stickyScroll = true
+    const scrolled = box()
+    if (!scrolled) return
+    reading.onFrame(scrolled, playback.revealing(), held !== undefined)
+    sync()
   }
 
   const noteTyped = () => setTyped((field?.plainText.length ?? 0) > 0)
@@ -667,41 +609,43 @@ export function ThreadDialog(props: {
   onMount(() => {
     context.renderer.on("frame", hold)
     context.renderer.on("frame", noteTyped)
+    queueMicrotask(() => {
+      reading.entered(box())
+      sync()
+    })
   })
 
   onCleanup(() => {
     context.renderer.off("frame", hold)
     context.renderer.off("frame", noteTyped)
+    playback.stop()
   })
 
   createEffect(() => {
     props.state()
-    props.limit()
-    reveal.shown()
-    queueMicrotask(measure)
+    props.rows()
+    revealed()
+    queueMicrotask(() => setHeight(panel?.height ?? 0))
   })
 
   createEffect(() => {
     const count = props.state().turns.length
     if (count === 0) {
-      seen = 0
-      setNewAnswers(0)
+      reading.onAnswer(count, box())
+      sync()
       return
     }
     queueMicrotask(() => {
-      if (atEnd()) {
-        readToEnd()
-        return
-      }
-      const missed = count - seen
-      if (missed > 0) setNewAnswers(missed)
+      reading.onAnswer(count, box())
+      sync()
     })
   })
 
   const clearing = useClearConfirm(() => props.state().turns.length, () => {
     held = undefined
-    place = undefined
+    reading.onAnswer(0, box())
     props.clear()
+    sync()
   })
 
   const moveScroller =
@@ -721,7 +665,6 @@ export function ThreadDialog(props: {
     setBrowse(move.browse)
     box.setText(move.text)
     box.cursorOffset = move.cursor
-    queueMicrotask(measure)
     return true
   }
 
@@ -750,139 +693,69 @@ export function ThreadDialog(props: {
     box.cursorOffset = direction === 1 ? box.plainText.length : 0
   }
 
+  const mode = (): InteractionMode => ({
+    waiting: props.state().active !== undefined,
+    typed: typed(),
+    listed: listed(),
+    canClear: props.state().turns.length > 0,
+    canJump: readingView().above > 0 || readingView().below > 0,
+  })
+
+  const listRun = (binding: Binding, _input: unknown, event?: KeyEvent) => {
+    event?.preventDefault()
+    const effect = binding.effect()
+    if (effect) applyList(effect)
+  }
+
+  const runs: Record<Intent, (binding: Binding, input: unknown, event?: KeyEvent) => false | void> = {
+    page_up: (_binding, input, event) => moveScroller((box) => box.scrollBy(-1, "viewport"))(input, event),
+    page_down: (_binding, input, event) => moveScroller((box) => box.scrollBy(1, "viewport"))(input, event),
+    home: (_binding, input, event) => moveScroller((box) => box.scrollTo(0))(input, event),
+    end: (_binding, input, event) => moveScroller((box) => box.scrollTo(box.scrollHeight))(input, event),
+    list: listRun,
+    step_down: listRun,
+    clear: (_binding, _input, event) => {
+      if ((field?.plainText.length ?? 0) > 0) return false
+      event?.preventDefault()
+      if (event?.eventType === "repeat" || event?.repeated) return
+      clearing.press()
+    },
+    recall_older: (_binding, _input, event) => {
+      event?.preventDefault()
+      walk(-1)
+    },
+    recall_newer: (_binding, _input, event) => {
+      event?.preventDefault()
+      walk(1)
+    },
+    choose_up: (_binding, _input, event) => {
+      event?.preventDefault()
+      setChosen((index) => nextChoice(index, -1, QUICK_PROMPTS.length))
+    },
+    choose_down: (_binding, _input, event) => {
+      event?.preventDefault()
+      setChosen((index) => nextChoice(index, 1, QUICK_PROMPTS.length))
+    },
+    choose: (_binding, _input, event) => {
+      event?.preventDefault()
+      const question = QUICK_PROMPTS[chosen()]
+      if (question) askQuick(question)
+    },
+    close_list: (_binding, _input, event) => {
+      event?.preventDefault()
+      setListed(false)
+    },
+    queue: () => {},
+  }
+
   context.keymap.layer(() => ({
     mode: "modal",
     priority: 1,
-    commands: [
-      {
-        id: "session.aside.page_up",
-        bind: "pageup",
-        title: "Page up",
-        group: "Dialog",
-        run: moveScroller((box) => box.scrollBy(-1, "viewport")),
-      },
-      {
-        id: "session.aside.page_down",
-        bind: "pagedown",
-        title: "Page down",
-        group: "Dialog",
-        run: moveScroller((box) => box.scrollBy(1, "viewport")),
-      },
-      {
-        id: "session.aside.home",
-        bind: "ctrl+home",
-        title: "First question",
-        group: "Dialog",
-        run: moveScroller((box) => box.scrollTo(0)),
-      },
-      {
-        id: "session.aside.end",
-        bind: "ctrl+end",
-        title: "Newest answer",
-        group: "Dialog",
-        run: moveScroller((box) => box.scrollTo(box.scrollHeight)),
-      },
-      {
-        id: "session.aside.list",
-        bind: "ctrl+up",
-        title: "Quick prompts",
-        group: "Dialog",
-        run: (_input: unknown, event?: KeyEvent) => {
-          event?.preventDefault()
-          applyList(ctrlUp(listed()))
-        },
-      },
-      {
-        id: "session.aside.step_down",
-        bind: "ctrl+down",
-        title: "Close the prompt list or the window",
-        group: "Dialog",
-        run: (_input: unknown, event?: KeyEvent) => {
-          event?.preventDefault()
-          applyList(ctrlDown(listed()))
-        },
-      },
-      {
-        id: "session.aside.clear",
-        bind: "delete",
-        title: "Clear the side thread",
-        group: "Dialog",
-        enabled: () => !listed(),
-        run: (_input: unknown, event?: KeyEvent) => {
-          if ((field?.plainText.length ?? 0) > 0) return false
-          event?.preventDefault()
-          if (event?.eventType === "repeat" || event?.repeated) return
-          clearing.press()
-        },
-      },
-      {
-        id: "session.aside.recall_older",
-        bind: "up",
-        title: "Earlier question",
-        group: "Dialog",
-        enabled: () => !listed(),
-        run: (_input: unknown, event?: KeyEvent) => {
-          event?.preventDefault()
-          walk(-1)
-        },
-      },
-      {
-        id: "session.aside.recall_newer",
-        bind: "down",
-        title: "Later question",
-        group: "Dialog",
-        enabled: () => !listed(),
-        run: (_input: unknown, event?: KeyEvent) => {
-          event?.preventDefault()
-          walk(1)
-        },
-      },
-      {
-        id: "session.aside.choose_up",
-        bind: "up",
-        title: "Previous quick prompt",
-        group: "Dialog",
-        enabled: () => listed(),
-        run: (_input: unknown, event?: KeyEvent) => {
-          event?.preventDefault()
-          setChosen((index) => nextChoice(index, -1, QUICK_PROMPTS.length))
-        },
-      },
-      {
-        id: "session.aside.choose_down",
-        bind: "down",
-        title: "Next quick prompt",
-        group: "Dialog",
-        enabled: () => listed(),
-        run: (_input: unknown, event?: KeyEvent) => {
-          event?.preventDefault()
-          setChosen((index) => nextChoice(index, 1, QUICK_PROMPTS.length))
-        },
-      },
-      {
-        id: "session.aside.choose",
-        bind: "enter",
-        title: "Ask the picked quick prompt",
-        group: "Dialog",
-        enabled: () => listed(),
-        run: (_input: unknown, event?: KeyEvent) => {
-          event?.preventDefault()
-          const question = QUICK_PROMPTS[chosen()]
-          if (question) askQuick(question)
-        },
-      },
-      {
-        id: "session.aside.close_list",
-        bind: "escape",
-        title: "Close the prompt list",
-        group: "Dialog",
-        enabled: () => listed(),
-        run: (_input: unknown, event?: KeyEvent) => {
-          event?.preventDefault()
-          setListed(false)
-        },
-      },
-    ],
+    commands: bindings(mode).map((binding) => ({
+      ...binding,
+      group: "Dialog",
+      run: (input: unknown, event?: KeyEvent) => runs[binding.intent](binding, input, event),
+    })),
   }))
 
   const askQuick = (question: string) => {
@@ -901,24 +774,20 @@ export function ThreadDialog(props: {
 
   const countText = () => countLabel(turnCount(), props.state().pending.length)
   const copyText = () => copyLabel(turnCount())
-  const rightText = () => belowLabel(newAnswers(), below())
+  const rightText = () => belowLabel(readingView().newAnswers, readingView().below)
   const confirmText = () => clearLabel(turnCount(), width())
-  const hintTier = () =>
-    keyHints({
-      panelWidth: width(),
-      copy: copyText(),
-      right: rightText(),
-      mode: footerMode(props.state().active !== undefined, typed()),
-      canClear: turnCount() > 0,
-      canJump: above() > 0 || below() > 0,
-    })
-  const header = () => headerRow(width(), countText(), above(), QUICK_PROMPTS.length, listed())
+  const hintTier = () => footerHints(mode(), width(), copyText(), rightText())
+  const header = () =>
+    headerRow(width(), countText(), readingView().above, QUICK_PROMPTS.length, listed())
   const listRoom = () => Math.max(0, height() - 2)
   const cardRows = () => quickCardRows(QUICK_PROMPTS.length)
-  const transcriptCap = () =>
-    listed()
-      ? listTranscriptRows(props.rows(), field?.height ?? 1, cardRows())
-      : props.limit()
+  const heights = () =>
+    panelHeights({
+      rows: props.rows(),
+      listed: listed(),
+      composerRows: field?.height ?? 1,
+      needed: cardRows(),
+    })
 
   const activeQuestion = () => props.state().active ?? ""
   const model = () => modelName(context.data, props.sessionID)
@@ -968,8 +837,8 @@ export function ThreadDialog(props: {
         ref={(element) => {
           scroller = element
         }}
-        maxHeight={transcriptCap()}
-        minHeight={listed() ? Math.min(cardRows(), transcriptCap()) : 0}
+        maxHeight={heights().maxHeight}
+        minHeight={heights().minHeight}
         stickyScroll
         stickyStart="bottom"
         contentOptions={{ minHeight: 0 }}
@@ -981,7 +850,7 @@ export function ThreadDialog(props: {
             {(item, index) => (
               <Turn
                 question={item.turn.question}
-                answer={() => reveal.text(index(), item.turn.answer)}
+                answer={() => answerText(index())}
                 carriedOn={() => gapBelow(props.state().turns, index(), props.sessionMoved())}
                 anchor={(element) => {
                   if (index() === turnCount() - 1) held = element
@@ -1077,7 +946,7 @@ export function ThreadDialog(props: {
         onCopy={props.copy}
         hints={hintTier}
         right={rightText}
-        highlight={() => newAnswers() > 0}
+        highlight={() => readingView().newAnswers > 0}
         onRight={scrollToEnd}
       />
     </box>

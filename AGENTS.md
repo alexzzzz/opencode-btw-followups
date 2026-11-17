@@ -24,10 +24,10 @@ copy is behind. A change the copy does not hold is a change the window never sho
   scroll and clear handling inside them. `test/tui.test.ts` pins the order of the attributes
   on its markdown element, which is a rule no other test can see.
 - `src/syntax.ts` is the syntax style a fenced block in an answer is drawn with.
-- `src/block.ts` turns one top-level block of an answer into the text a click copies, and finds
+- `src/pointer.ts` turns one top-level block of an answer into the text a click copies, and finds
   the block under the pointer for the rail beside it.
 - `src/prompt.ts`, `src/layout.ts`, `src/quick.ts`, `src/state.ts`, `src/footer.ts`,
-  `src/header.ts`, `src/keys.ts`, `src/reveal.ts` and `src/block.ts` are pure, and `test/`
+  `src/header.ts`, `src/interaction.ts`, `src/playback.ts` and `src/pointer.ts` are pure, and `test/`
   covers them.
 - `README.md` is what a user reads.
 - `docs/design.md` holds the measurement behind every rule below, plus the install
@@ -86,10 +86,10 @@ copies drift.
   write to the side state, not only when a turn is added, and an answer lands as two writes a
   couple of milliseconds apart, so the window remembers the turn it is playing and ignores the
   later runs for that turn; without that, the first write starts the play and the second draws
-  the answer whole. The mark of a played answer lives in a `WeakSet` beside the thread in
-  `src/tui.tsx`, so a window opened later draws a played answer whole while an answer that
+  the answer whole. The mark of a played answer lives with the pacing in `src/playback.ts`,
+  keyed by session id, so a window opened later draws a played answer whole while an answer that
   arrived behind a closed window still plays when the window opens. `firstShown` in
-  `src/reveal.ts` decides where the text starts.
+  `src/playback.ts` decides where the text starts.
 - Hold the newest question's first line at the top of the window while its answer is written out,
   because the transcript follows the bottom and a long answer would otherwise push its own
   question out of view: the window follows a short answer to the bottom, stops following the
@@ -147,7 +147,8 @@ copies drift.
 - Measure the panel width from the dialog's own root box on `onSizeChange`, because the host
   chooses the panel width. The footer fits its hints to that width, longest wording first and
   the next tier down when the panel is too narrow, and draws none rather than one cut short.
-  `src/footer.ts` owns that fitting, and `test/footer.test.ts` holds it in place.
+  `src/footer.ts` measures the room and `src/interaction.ts` owns the table and the tiers, and
+  `test/interaction.test.ts` holds them in place.
 - Name a key only when the reader cannot reach it by habit. `PageUp`, `PageDown`, the wheel,
   `Enter` to send and `Up` for history mean here what they mean in the host prompt, so the row
   leaves them out. What it names is what the host does not teach: `ctrl+home/end jump`, because
@@ -218,7 +219,7 @@ copies drift.
 - Copy one top-level piece of an answer on a click, because that is the unit the renderer builds
   and the unit a reader wants: `renderNode` hands each top-level block its own renderable and
   inline tokens never reach it, so a click on a bold word is a click on its paragraph.
-  `src/block.ts` turns the token into plain text and `test/block.test.ts` holds it.
+  `src/pointer.ts` turns the token into plain text and `test/pointer.test.ts` holds it.
 - Return the renderable `defaultRender` built, with the handler set on it, rather than a box of
   the plugin's own around it: a wrapper turns `canUpdateInPlace` off and the reveal rewrites the
   content once per step for a second and a half, so every block would be rebuilt on every step.
@@ -250,8 +251,8 @@ copies drift.
   keeps the arrows, `Home` and `End` for the cursor.
 - Mirror it on `Ctrl+Down`: the list goes down on that key, and the window goes down once the
   list is already down, because `Ctrl+Up` is the way in at both levels and the way out should
-  read the same. The host binds no `Ctrl+Down`, so the key is free. `src/keys.ts` decides both
-  keys and whether the session command may open the window at all, and `test/keys.test.ts` holds
-  it in place.
+  read the same. The host binds no `Ctrl+Down`, so the key is free. `src/interaction.ts` holds both
+  keys in its table and decides whether the session command may open the window at all, and
+  `test/interaction.test.ts` holds it in place.
 - Ask a pick in the side thread, which is what both a click and `Enter` do, because the prompts
   are the window's own and a side question leaves the conversation alone.

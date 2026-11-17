@@ -5,6 +5,10 @@ prompt, the install notes or the build, because each item below cost a measureme
 The sources carry no comments: a name says what a thing does, and this file says why it is
 shaped that way. `README.md` carries what a user sees.
 
+The exported names follow the domain — `SessionThread`, `AnswerPlayback`, `AnswerPointer` and
+`PanelGeometry` — rather than the file names, which stayed short as the modules grew. Renaming
+the files would move every import without adding a fact, so the names live in the code and here.
+
 ## What the host does not expose
 
 Checked against the published types of `@opencode/plugin` and `@opentui/core` that `package.json`
@@ -216,6 +220,12 @@ is new since the previous answer, which is the question a reader of a thread com
 They sit behind one marker in the header of the window: the marker opens the list of all of
 them, centred in the panel, floating over the transcript.
 
+The rows the transcript may take are decided in `src/layout.ts`: it takes the terminal rows,
+whether the list is open, the composer's current rows and the rows the card needs, and returns
+ready maximum and minimum heights. The arithmetic behind them stays inside the module, so the
+window and the command that opens it ask a decision rather than carry the constants.
+`test/layout.test.ts` holds the rules.
+
 The evidence was taken against OpenCode 2.1.2 and `@opentui/core` 0.5.14.
 
 - The panel is the host's `large` dialog, which is 88 cells wide
@@ -328,6 +338,11 @@ The colour is read from the same place as the style, so it goes before the conte
 
 ## The paragraph a click copies
 
+The resolution below — the plain-text conversion, the block lookup, the point-in-box check, the
+selection guard and the rail string — lives in `src/pointer.ts`. The dialog passes the renderable
+surface and a selection-guard adapter, and consumes the place, rail and copy text from the one
+result; the OpenTUI field names stay inside the module. `test/pointer.test.ts` holds the rules.
+
 A click on one piece of an answer puts that piece in the terminal clipboard, so a command or a
 sentence the reader wants out of the window does not have to be dragged across by hand. The
 piece is what the renderer already builds one of per top-level block, so a click on a paragraph,
@@ -353,7 +368,7 @@ renderable in `internalBlockMode: "top-level"`, and its mock mouse.
 - The copy is the plain text of the piece: the markers come off a paragraph, a link gives its
   label, a fence gives its code without the fence, a list keeps its numbers and its nesting, and
   a table gives rows of cells. A reader who clicks a shell command gets the command, not the
-  backticks around it. `src/block.ts` holds that, and `test/block.test.ts` holds it in place.
+  backticks around it. `src/pointer.ts` holds that, and `test/pointer.test.ts` holds it in place.
 - A rule and a blank row copy nothing, because a click on one is not a request for a line of
   dashes.
 - A click that ends a text selection is not a click on a piece of an answer. The selection is
@@ -367,7 +382,7 @@ renderable in `internalBlockMode: "top-level"`, and its mock mouse.
 
 A vertical rail appears in the gutter left of the block the pointer is on, so the piece a click
 would take is the piece the reader sees marked. It is the same glyph a question's rail uses
-(`RAIL` in `src/layout.ts`), because the two rails are the same kind of thing: a line that says
+(`RAIL` in `src/rail.ts`), because the two rails are the same kind of thing: a line that says
 what the row belongs to. The tone is not the question's: the accent already means "this is what
 you asked", so the answer's rail is drawn in `text.muted`, the tone the footer and the counts
 are drawn in, and a reader never has to tell two accents apart.
@@ -401,6 +416,11 @@ The evidence was taken with the same renderer, a 60-cell terminal and the same m
 
 ## The answer as it arrives
 
+The play below — the guard, the played memory, the first-shown choice and the step arithmetic —
+lives in `src/playback.ts`, behind `createAnswerPlayback` and its `AnswerPlayback` interface. The
+dialog passes a session id and a timer and consumes `text` and `revealing`;
+`test/playback.test.ts` holds the rules and the shipped regressions.
+
 `session.generate` returns the finished text in one response, so the newest answer is written
 out on a timer rather than streamed. The step is one character until an answer passes ninety,
 and then a ninety-fifth of it, so every answer takes about a second and a half however long it
@@ -410,7 +430,7 @@ one write had nothing under the question until the timer ran.
 
 Only the newest turn is written out again. An older one is drawn whole, and a window reopened
 over a thread draws every turn whole, so a half-revealed answer never leaves markdown's control
-characters on screen. The pacing is in `src/reveal.ts` and `test/reveal.test.ts` holds it.
+characters on screen.
 
 The reveal is paid once per answer. The newest turn is written out whether the window was open
 when it landed or opened afterwards, and the plugin remembers which answers it has played, so a
@@ -421,15 +441,20 @@ The trap is that the effect behind the reveal runs on every write to the side st
 when the turn count changes. An answer lands as two writes, the turn itself and the spinner
 going out, and a probe put them two milliseconds apart: the first started the play at fourteen
 characters and the second, reading the answer as already played, drew all twelve hundred at once.
-The window therefore remembers the turn it is playing and returns early for later runs over the
-same one. That memory is the window's own; the mark of a played answer is a `WeakSet` of turns
-beside the thread in `src/tui.tsx`, because a fresh window has to know what an earlier one played.
+The playback module therefore remembers the turn it is playing and returns early for later runs
+over the same one. Its played memory lives beside the pacing in `src/playback.ts` rather than in
+the window, keyed by session id, because a fresh window has to know what an earlier one played for
+that session and a different session must start its own play.
 
 The reveal is also what keeps the markdown of a finished answer right: a later write rebuilds
 the list block, and the block picks the syntax style up on the way, which is the case described
 above.
 
 ## Holding the question at the top
+
+The machine below — the hold, the sticky-scroll switching, the manual-scroll release, the notice
+and the reading position restored on reopen — lives in `src/reading.ts`. The dialog builds a plain
+numeric scrollbox adapter and consumes its `view`. `test/reading.test.ts` holds the rules.
 
 The transcript follows the bottom, which is what a reader wants while a short answer is written
 out: the newest rows stay in view. A long answer is the case that breaks it, because the
@@ -465,6 +490,13 @@ do not fit wait below under the footer's `↓ n below`.
 
 ## The footer row
 
+The four modes, the key table and the tier fitting live in `src/interaction.ts`. The footer
+measures the room the row has left and asks the table for its hints; the dialog builds its keymap
+from the same table, so a bind and the hint that names it are one entry and cannot drift apart.
+The session command that opens the window binds the same `SESSION_OPEN_BIND` the list key uses,
+so the key named in the window and the key that opens it cannot part.
+`test/interaction.test.ts` holds the table and the fitting.
+
 One row, one job. While a clear waits for its second press the row is the question and nothing
 else, because a warning read beside four hints is not read at all.
 
@@ -477,7 +509,8 @@ A hint is never cut short. OpenTUI lays each text out at its own width, so a row
 its room does not clip, it overlaps: a phone-sized terminal gave the dialog about fifty cells,
 which leaves the footer twenty-six beside `nothing to copy`, while the two-hint tier needs
 forty-two. The screenshot that showed it read `nothing to page up/ scrolldele clear t`. That
-arithmetic is in `src/footer.ts` and `test/footer.test.ts` holds it.
+room arithmetic is in `src/footer.ts`; the tiers and their fitting are in `src/interaction.ts`,
+and `test/interaction.test.ts` holds both.
 
 A hint earns its cells only when the reader cannot reach the key by habit. The wheel is the mouse,
 `PageUp` and `PageDown` turn a page in every pane a terminal draws, `Enter` sends a line in the
@@ -499,6 +532,11 @@ is empty, so the key stays a forward delete otherwise, and only while the thread
 because `Delete` on an empty thread does nothing. `enter queues` is the one version of the send
 worth saying: while a question is out the press does not send, it queues the next one behind the
 answer that is arriving, and that is a fact about the state rather than about the key.
+
+The `queue` entry in the table carries no keymap command of its own: `Enter` is already the
+composer's submit, so the dialog leaves that intent a no-op and the field does the work. The entry
+stays in the table because the table is the one source for both the binds and the hints that name
+them; a hint built outside it would be a second copy that could drift.
 
 The header carries `esc close` in every mode that fits the panel at all, so the row spends
 nothing on the escape.
@@ -528,6 +566,14 @@ does not move for them. Reading by hand clears the notice, so the footer never n
 has already found the answer themselves.
 
 ## The queue behind the window
+
+The lifecycle below — one request in flight, the queue that outlives the window, a clear that keeps
+what was not asked to be dropped, an empty answer becoming a failure, and a deleted session calling
+its request off — lives in `src/thread.ts`, behind `createSessionThread` and its `SessionThread`
+interface. The answer generator and the session-deleted event are adapters injected at its seam,
+and the per-session registries for in-flight answers and draining loops are internal; played
+memory is keyed by session id in `src/playback.ts`, the one place that reads and writes it.
+`test/thread.test.ts` holds the rules.
 
 One request at a time per session. The questions asked while one is out go out together as the
 next one, numbered by `thread`, so they are answered as a list rather than as one run-together
