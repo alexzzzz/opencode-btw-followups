@@ -1,7 +1,7 @@
 import { createSignal, Show } from "solid-js"
 import type { Plugin } from "@opencode/plugin/tui"
 import { createThread, type Thread } from "./thread.ts"
-import { copiedLabel } from "./block.ts"
+import { copiedLabel } from "./pointer.ts"
 import { opensFromSession } from "./keys.ts"
 import { createSyntaxStyle } from "./syntax.ts"
 import { transcriptRows } from "./layout.ts"

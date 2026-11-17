@@ -328,6 +328,11 @@ The colour is read from the same place as the style, so it goes before the conte
 
 ## The paragraph a click copies
 
+The resolution below — the plain-text conversion, the block lookup, the point-in-box check, the
+selection guard and the rail string — lives in `src/pointer.ts`. The dialog passes the renderable
+surface and a selection-guard adapter, and consumes the place, rail and copy text from the one
+result; the OpenTUI field names stay inside the module. `test/pointer.test.ts` holds the rules.
+
 A click on one piece of an answer puts that piece in the terminal clipboard, so a command or a
 sentence the reader wants out of the window does not have to be dragged across by hand. The
 piece is what the renderer already builds one of per top-level block, so a click on a paragraph,
@@ -353,7 +358,7 @@ renderable in `internalBlockMode: "top-level"`, and its mock mouse.
 - The copy is the plain text of the piece: the markers come off a paragraph, a link gives its
   label, a fence gives its code without the fence, a list keeps its numbers and its nesting, and
   a table gives rows of cells. A reader who clicks a shell command gets the command, not the
-  backticks around it. `src/block.ts` holds that, and `test/block.test.ts` holds it in place.
+  backticks around it. `src/pointer.ts` holds that, and `test/pointer.test.ts` holds it in place.
 - A rule and a blank row copy nothing, because a click on one is not a request for a line of
   dashes.
 - A click that ends a text selection is not a click on a piece of an answer. The selection is
