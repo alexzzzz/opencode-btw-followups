@@ -22,6 +22,25 @@ Run this command, or ask your coding agent to install the plugin for you:
 opencode plugin add @alexzzzz/opencode-btw-followups
 ```
 
+### Updating
+
+Check for a new version, then install it:
+
+```sh
+opencode plugin check @alexzzzz/opencode-btw-followups
+opencode plugin update @alexzzzz/opencode-btw-followups
+```
+
+Run `opencode plugin update` without a package name to update every package plugin.
+
+### Uninstalling
+
+Remove the plugin from your global OpenCode configuration:
+
+```sh
+opencode plugin remove @alexzzzz/opencode-btw-followups
+```
+
 ## Getting started
 
 In the session prompt, type `/btw` followed by your question:
