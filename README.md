@@ -14,32 +14,49 @@ The built-in `/btw` answers one question, then forgets the exchange. A follow-up
 
 If you only have one question to ask, the built-in `/btw` is all you need.
 
-## How to install it
+## Install, update, and remove
 
-Run this command, or ask your coding agent to install the plugin for you:
+Give the matching instruction below to your coding agent. The agent also handles the built-in `/btw` plugin.
 
-```sh
-opencode plugin add @alexzzzz/opencode-btw-followups
+The global OpenCode config directory is `~/.config/opencode` on macOS and Linux, or `%USERPROFILE%\.config\opencode` on Windows.
+
+### Install
+
+```text
+Install @alexzzzz/opencode-btw-followups in OpenCode.
+
+1. Run `opencode plugin add @alexzzzz/opencode-btw-followups`.
+2. Open the global `cli.json`.
+3. Add `-opencode.btw` to the existing `plugins` array. Keep every other entry.
+4. Run `opencode plugin list` and confirm that `btw-followups` is listed with its version.
+5. Run `opencode api get /api/plugin` and confirm that the `btw-followups` entry is active.
 ```
 
-### Updating
+`opencode plugin add` does not disable the built-in `/btw`. Both plugins answer the same command, so the agent has to add `-opencode.btw` to `cli.json`.
 
-Check for a new version, then install it:
+### Update
 
-```sh
-opencode plugin check @alexzzzz/opencode-btw-followups
-opencode plugin update @alexzzzz/opencode-btw-followups
+```text
+Update @alexzzzz/opencode-btw-followups in OpenCode.
+
+1. Run `opencode plugin check @alexzzzz/opencode-btw-followups`.
+2. If a new version is available, run `opencode plugin update @alexzzzz/opencode-btw-followups`.
+3. Run `opencode plugin list` and confirm that the new version is active.
+4. Leave `-opencode.btw` in `cli.json`. The built-in command must stay disabled.
 ```
 
-Run `opencode plugin update` without a package name to update every package plugin.
+### Remove
 
-### Uninstalling
+```text
+Remove @alexzzzz/opencode-btw-followups from OpenCode and restore the built-in /btw.
 
-Remove the plugin from your global OpenCode configuration:
-
-```sh
-opencode plugin remove @alexzzzz/opencode-btw-followups
+1. Run `opencode plugin remove @alexzzzz/opencode-btw-followups`.
+2. Open the global `cli.json`.
+3. Remove only `-opencode.btw` from the `plugins` array.
+4. Run `opencode plugin list` and confirm that `btw-followups` is gone and `-opencode.btw` is no longer in `cli.json`.
 ```
+
+`opencode plugin remove` does not re-enable the built-in `/btw`. Removing the negative entry from `cli.json` does. OpenCode reloads configuration files live. If the TUI still shows the previous `/btw`, run `/reload` there.
 
 ## Getting started
 
