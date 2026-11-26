@@ -14,120 +14,53 @@ The built-in `/btw` answers one question, then forgets the exchange. A follow-up
 
 If you only have one question to ask, the built-in `/btw` is all you need.
 
-## Install, update, and remove
+## Agent instructions: install, update, and remove
 
-Each block below is self-contained. Copy the block you need.
+Each block below is self-contained. Copy only the block you need.
 
 ### Install
 
 ```text
-Goal: install @alexzzzz/opencode-btw-followups in OpenCode and make /btw use this plugin instead of the built-in command.
+Goal: install @alexzzzz/opencode-btw-followups and make `/btw` use it instead of the built-in command.
 
-Context:
-- Package: @alexzzzz/opencode-btw-followups
-- OpenCode global config directory: ~/.config/opencode on macOS and Linux, or %USERPROFILE%\.config\opencode on Windows.
-- The package is added to opencode.jsonc. The built-in /btw is a plugin named opencode.btw and is controlled by cli.json.
-- opencode plugin add does not disable the built-in plugin.
-
-Steps:
 1. Run `opencode plugin add @alexzzzz/opencode-btw-followups`.
-   Why: installs the package and adds it to the global opencode.jsonc.
-2. Open `cli.json` in the global config directory.
-   Why: this file controls the built-in TUI plugins.
-3. Add `-opencode.btw` to the existing `plugins` array. If it is already there, leave one copy. Keep every other entry.
-   Why: the built-in /btw and this plugin answer the same command, and both active at once collide.
-   If `cli.json` is missing, create it with:
-   {"$schema":"https://opencode.ai/v2/cli.json","plugins":["*","-opencode.btw"]}
-4. Run `opencode plugin list`.
-   Why: confirms the package is installed and shows its version.
-5. Run `opencode api get /api/plugin` and look for `btw-followups` with `"status":"active"`.
-   Why: confirms the running OpenCode server loaded the plugin.
-6. If the TUI still uses the old /btw, run `/reload` in the TUI.
-   Why: reloads plugins without restarting OpenCode.
+2. Open `cli.json` in the global OpenCode config (`~/.config/opencode`; Windows: `%USERPROFILE%\.config\opencode`) and add `-opencode.btw` to `plugins`. Keep every other entry. This turns off the built-in `/btw`; without it both answer the same command.
+3. Run `opencode plugin list` and check that `btw-followups` is listed.
+4. Ask the user to run `/btw`. If the built-in command still opens, ask them to run `/reload` and try again.
 
-Success:
-- `opencode plugin list` shows `btw-followups` with source `@alexzzzz/opencode-btw-followups`.
-- `cli.json` contains `-opencode.btw` exactly once.
-- `/btw` opens this plugin's window.
+Done when `/btw` opens the plugin window.
 
-If something fails:
-- `opencode` is not found: stop and report that OpenCode is not on PATH.
-- `plugin add` fails: report the full error. Do not edit package files by hand.
-- `btw-followups` is missing from `opencode plugin list`: inspect the `plugins` array in `opencode.jsonc` and report it. Do not guess or add duplicate entries.
-- The plugin is installed but not active: run `/reload`, check again, then report the command output.
-- Both /btw interfaces appear: check that `cli.json` contains `-opencode.btw`, then run `/reload`.
+If `cli.json` is missing, create it with `{"$schema":"https://opencode.ai/v2/cli.json","plugins":["*","-opencode.btw"]}`. If a command fails, report it instead of guessing.
 ```
 
 ### Update
 
 ```text
-Goal: update @alexzzzz/opencode-btw-followups to the latest version and keep the built-in /btw disabled.
+Goal: update @alexzzzz/opencode-btw-followups and keep the built-in `/btw` off.
 
-Context:
-- Package: @alexzzzz/opencode-btw-followups
-- OpenCode global config directory: ~/.config/opencode on macOS and Linux, or %USERPROFILE%\.config\opencode on Windows.
-- The package is stored in opencode.jsonc. The built-in /btw is disabled by `-opencode.btw` in cli.json.
-- Updating the package must not remove or change the built-in switch.
+Run `opencode plugin update @alexzzzz/opencode-btw-followups`.
 
-Steps:
-1. Run `opencode plugin check @alexzzzz/opencode-btw-followups`.
-   Why: asks the registry whether a newer version exists.
-2. If the command says the plugin is current, stop and report the current version. If a newer version exists, run `opencode plugin update @alexzzzz/opencode-btw-followups`.
-   Why: installs the latest package and updates the global opencode.jsonc.
-3. Run `opencode plugin list`.
-   Why: confirms the installed version.
-4. Check `cli.json` in the global config directory. Keep `-opencode.btw` in the `plugins` array exactly once, and keep every other entry.
-   Why: the update must leave the built-in /btw disabled. If the line is missing, add it. If `cli.json` is missing, create it with:
-   {"$schema":"https://opencode.ai/v2/cli.json","plugins":["*","-opencode.btw"]}
-5. If the TUI still uses the old version, run `/reload` in the TUI.
-   Why: reloads plugins without restarting OpenCode.
+Keep `-opencode.btw` in `cli.json` (`~/.config/opencode`; Windows: `%USERPROFILE%\.config\opencode`) and keep every other entry. This keeps the built-in `/btw` off.
+Run `opencode plugin list` and check the new version. If the old plugin still opens, ask the user to run `/reload`.
 
-Success:
-- `opencode plugin list` shows `btw-followups` with the new version and source `@alexzzzz/opencode-btw-followups`.
-- `cli.json` still contains `-opencode.btw` exactly once.
-- `/btw` still opens this plugin's window.
+Done when `opencode plugin list` shows the new version and `/btw` opens the plugin window.
 
-If something fails:
-- `plugin check` fails: report the full error. Do not change the installed package.
-- `plugin update` fails: report the current and requested versions and the full error. Leave `cli.json` unchanged.
-- The version does not change: run `/reload`, check again, then report the output of `opencode plugin list`.
-- The built-in /btw appears after the update: check that `cli.json` contains `-opencode.btw`, add it if needed, then run `/reload`.
+If `cli.json` is missing, create it with `{"$schema":"https://opencode.ai/v2/cli.json","plugins":["*","-opencode.btw"]}`. If a command fails, report it instead of guessing.
 ```
 
 ### Remove
 
 ```text
-Goal: remove @alexzzzz/opencode-btw-followups from OpenCode and restore the built-in /btw.
+Goal: remove @alexzzzz/opencode-btw-followups and restore the built-in `/btw`.
 
-Context:
-- Package: @alexzzzz/opencode-btw-followups
-- OpenCode global config directory: ~/.config/opencode on macOS and Linux, or %USERPROFILE%\.config\opencode on Windows.
-- `opencode plugin remove` removes the package from opencode.jsonc. It does not re-enable the built-in /btw.
-- The built-in /btw is enabled by removing `-opencode.btw` from cli.json.
-
-Steps:
 1. Run `opencode plugin remove @alexzzzz/opencode-btw-followups`.
-   Why: removes the package from the global opencode.jsonc.
-   If the command says the plugin is not installed, continue only if `cli.json` still contains `-opencode.btw`; the remaining goal is to restore the built-in /btw.
-2. Open `cli.json` in the global config directory. Remove only `-opencode.btw` from the `plugins` array, and keep every other entry.
-   Why: removing this entry lets the built-in /btw load again. If `cli.json` is missing, the built-in /btw is already enabled, so skip this step.
-3. Run `opencode plugin list`.
-   Why: confirms that `btw-followups` is gone.
-4. Check that `cli.json` no longer contains `-opencode.btw`.
-   Why: confirms that the built-in /btw can load.
-5. If the TUI still uses the plugin window, run `/reload` in the TUI.
-   Why: reloads plugins without restarting OpenCode.
+2. Open `cli.json` in the global OpenCode config (`~/.config/opencode`; Windows: `%USERPROFILE%\.config\opencode`) and remove `-opencode.btw` from `plugins`. Keep every other entry. This lets the built-in `/btw` load again.
+3. Run `opencode plugin list` and check that `btw-followups` is gone.
+4. Ask the user to run `/btw`. If the plugin window still opens, ask them to run `/reload` and try again.
 
-Success:
-- `opencode plugin list` does not list `btw-followups`.
-- `cli.json` does not contain `-opencode.btw`.
-- `/btw` opens the built-in command.
+Done when `/btw` opens the built-in command.
 
-If something fails:
-- `plugin remove` fails because the plugin is not installed: continue only if `cli.json` has `-opencode.btw`; otherwise report that there is nothing to remove.
-- `btw-followups` is still listed with a local path: stop and report the path. Do not delete files or directories without asking.
-- `btw-followups` is still listed after a successful remove: report the full output of `opencode plugin list` and the `plugins` array from opencode.jsonc.
-- The built-in /btw does not return: check that `-opencode.btw` is gone, run `/reload`, then report the result.
+If `cli.json` is missing, the built-in `/btw` is already on. If `btw-followups` still appears with a local path, report it and do not delete files. If a command fails, report it instead of guessing.
 ```
 
 ## Getting started
