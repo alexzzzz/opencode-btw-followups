@@ -70,8 +70,6 @@ If you close the window while an answer is being prepared, a `btw` badge appears
 
 ## Agent instructions
 
-Each block below is self-contained. Copy only the block you need.
-
 ### Install
 
 ```text
