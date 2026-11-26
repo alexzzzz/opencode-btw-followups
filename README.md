@@ -4,6 +4,20 @@ An OpenCode plugin that gives side questions a thread of their own.
 
 [![npm](https://img.shields.io/npm/v/@alexzzzz/opencode-btw-followups)](https://www.npmjs.com/package/@alexzzzz/opencode-btw-followups)
 
+## Contents
+
+- [What does it do?](#what-does-it-do)
+- [Why use it?](#why-use-it)
+- [Getting started](#getting-started)
+  - [Keyboard shortcuts](#keyboard-shortcuts)
+- [Working in the window](#working-in-the-window)
+- [Things to keep in mind](#things-to-keep-in-mind)
+- [Agent instructions](#agent-instructions)
+  - [Install](#install)
+  - [Update](#update)
+  - [Remove](#remove)
+- [License](#license)
+
 ## What does it do?
 
 The plugin replaces OpenCode's built-in `/btw` with a separate window for side questions. It keeps every question and answer in that window and sends the whole thread with each new question. Follow-up questions build on earlier answers, while your main session stays untouched.
@@ -13,48 +27,6 @@ The plugin replaces OpenCode's built-in `/btw` with a separate window for side q
 The built-in `/btw` answers one question, then forgets the exchange. A follow-up starts from scratch. Asking a side question in the main session also adds the question and answer to the session's context and transcript, which is not always what you want.
 
 If you only have one question to ask, the built-in `/btw` is all you need.
-
-## Agent instructions: install, update, and remove
-
-Each block below is self-contained. Copy only the block you need.
-
-### Install
-
-```text
-Goal: install @alexzzzz/opencode-btw-followups and make `/btw` use it instead of the built-in command.
-
-1. Run `opencode plugin add @alexzzzz/opencode-btw-followups`.
-2. Open `cli.json` in the global OpenCode config (`~/.config/opencode`; Windows: `%USERPROFILE%\.config\opencode`) and add `-opencode.btw` to `plugins`. Keep every other entry. This turns off the built-in `/btw`; without it both answer the same command.
-3. Run `opencode plugin list` and check that `btw-followups` is listed.
-4. Run `opencode reload`.
-5. Ask the user to run `/btw` and check that the plugin window opens.
-
-Done when `/btw` opens the plugin window.
-
-If `cli.json` is missing, create it with `{"$schema":"https://opencode.ai/v2/cli.json","plugins":["*","-opencode.btw"]}`. If a command fails, report it instead of guessing.
-```
-
-### Update
-
-```text
-Run `opencode plugin update @alexzzzz/opencode-btw-followups`.
-```
-
-### Remove
-
-```text
-Goal: remove @alexzzzz/opencode-btw-followups and restore the built-in `/btw`.
-
-1. Run `opencode plugin remove @alexzzzz/opencode-btw-followups`.
-2. Open `cli.json` in the global OpenCode config (`~/.config/opencode`; Windows: `%USERPROFILE%\.config\opencode`) and remove `-opencode.btw` from `plugins`. Keep every other entry. This lets the built-in `/btw` load again.
-3. Run `opencode plugin list` and check that `btw-followups` is gone.
-4. Run `opencode reload`.
-5. Ask the user to run `/btw` and check that the built-in command opens.
-
-Done when `/btw` opens the built-in command.
-
-If `cli.json` is missing, the built-in `/btw` is already on. If `btw-followups` still appears with a local path, report it and do not delete files. If a command fails, report it instead of guessing.
-```
 
 ## Getting started
 
@@ -95,6 +67,46 @@ If you close the window while an answer is being prepared, a `btw` badge appears
 - **Tools:** The model cannot use tools in the side window. It cannot read files, run commands, or take other actions. If it tries to use a tool, the answer may fail, and the window shows the question that failed.
 - **Storage:** Threads are kept in memory only. They are lost when OpenCode stops or when you delete the session.
 - **Terminal:** The window needs a terminal that is at least 15 rows tall.
+
+## Agent instructions
+
+Each block below is self-contained. Copy only the block you need.
+
+### Install
+
+```text
+Goal: install @alexzzzz/opencode-btw-followups and make `/btw` use it instead of the built-in command.
+
+1. Run `opencode plugin add @alexzzzz/opencode-btw-followups`.
+2. Open `cli.json` in the global OpenCode config (`~/.config/opencode`; Windows: `%USERPROFILE%\.config\opencode`) and add `-opencode.btw` to `plugins`. Keep every other entry. This turns off the built-in `/btw`; without it both answer the same command.
+3. Run `opencode plugin list` and check that `btw-followups` is listed.
+4. Ask the user to run `/btw`. If the built-in command still opens, ask them to run `/reload` and try again.
+
+Done when `/btw` opens the plugin window.
+
+If `cli.json` is missing, create it with `{"$schema":"https://opencode.ai/v2/cli.json","plugins":["*","-opencode.btw"]}`. If a command fails, report it instead of guessing.
+```
+
+### Update
+
+```text
+Run `opencode plugin update @alexzzzz/opencode-btw-followups`.
+```
+
+### Remove
+
+```text
+Goal: remove @alexzzzz/opencode-btw-followups and restore the built-in `/btw`.
+
+1. Run `opencode plugin remove @alexzzzz/opencode-btw-followups`.
+2. Open `cli.json` in the global OpenCode config (`~/.config/opencode`; Windows: `%USERPROFILE%\.config\opencode`) and remove `-opencode.btw` from `plugins`. Keep every other entry. This lets the built-in `/btw` load again.
+3. Run `opencode plugin list` and check that `btw-followups` is gone.
+4. Ask the user to run `/btw`. If the plugin window still opens, ask them to run `/reload` and try again.
+
+Done when `/btw` opens the built-in command.
+
+If `cli.json` is missing, the built-in `/btw` is already on. If `btw-followups` still appears with a local path, report it and do not delete files. If a command fails, report it instead of guessing.
+```
 
 ## License
 
