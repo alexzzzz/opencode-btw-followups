@@ -36,16 +36,7 @@ If `cli.json` is missing, create it with `{"$schema":"https://opencode.ai/v2/cli
 ### Update
 
 ```text
-Goal: update @alexzzzz/opencode-btw-followups and keep the built-in `/btw` off.
-
 Run `opencode plugin update @alexzzzz/opencode-btw-followups`.
-
-Keep `-opencode.btw` in `cli.json` (`~/.config/opencode`; Windows: `%USERPROFILE%\.config\opencode`) and keep every other entry. This keeps the built-in `/btw` off.
-Run `opencode plugin list` and check the new version. If the old plugin still opens, ask the user to run `/reload`.
-
-Done when `opencode plugin list` shows the new version and `/btw` opens the plugin window.
-
-If `cli.json` is missing, create it with `{"$schema":"https://opencode.ai/v2/cli.json","plugins":["*","-opencode.btw"]}`. If a command fails, report it instead of guessing.
 ```
 
 ### Remove
