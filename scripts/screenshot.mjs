@@ -5,6 +5,8 @@
 
 import { spawnSync } from "node:child_process"
 import { existsSync } from "node:fs"
+import { join } from "node:path"
+import { fileURLToPath, pathToFileURL } from "node:url"
 
 const entry = process.argv[2] ?? "scripts/screenshot.tsx"
 
@@ -23,7 +25,9 @@ const browser = [
 
 if (!browser) throw new Error("no Edge or Chrome found for the headless shot")
 
-const url = "file:///G:/repos/opencode-btw-followups/temp/btw-window.html"
+const root = fileURLToPath(new URL("..", import.meta.url))
+const url = pathToFileURL(join(root, "temp", "btw-window.html")).href
+const screenshotPath = join(root, "temp", "btw-window-full.png")
 const shot = spawnSync(
   browser,
   [
@@ -31,7 +35,7 @@ const shot = spawnSync(
     "--disable-gpu",
     "--force-device-scale-factor=2",
     "--hide-scrollbars",
-    "--screenshot=G:/repos/opencode-btw-followups/temp/btw-window-full.png",
+    `--screenshot=${screenshotPath}`,
     "--window-size=2800,2200",
     url,
   ],
