@@ -80,7 +80,8 @@ Goal: install @alexzzzz/opencode-btw-followups and make `/btw` use it instead of
 1. Run `opencode plugin add @alexzzzz/opencode-btw-followups`.
 2. Open `cli.json` in the global OpenCode config (`~/.config/opencode`; Windows: `%USERPROFILE%\.config\opencode`) and add `-opencode.btw` to `plugins`. Keep every other entry. This turns off the built-in `/btw`; without it both answer the same command.
 3. Run `opencode plugin list` and check that `btw-followups` is listed.
-4. Ask the user to run `/btw`. If the built-in command still opens, ask them to run `/reload` and try again.
+4. Run `opencode reload`.
+5. Ask the user to run `/btw` and check that the plugin window opens.
 
 Done when `/btw` opens the plugin window.
 
@@ -101,7 +102,8 @@ Goal: remove @alexzzzz/opencode-btw-followups and restore the built-in `/btw`.
 1. Run `opencode plugin remove @alexzzzz/opencode-btw-followups`.
 2. Open `cli.json` in the global OpenCode config (`~/.config/opencode`; Windows: `%USERPROFILE%\.config\opencode`) and remove `-opencode.btw` from `plugins`. Keep every other entry. This lets the built-in `/btw` load again.
 3. Run `opencode plugin list` and check that `btw-followups` is gone.
-4. Ask the user to run `/btw`. If the plugin window still opens, ask them to run `/reload` and try again.
+4. Run `opencode reload`.
+5. Ask the user to run `/btw` and check that the built-in command opens.
 
 Done when `/btw` opens the built-in command.
 
