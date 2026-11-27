@@ -287,3 +287,7 @@ copies drift.
 - Copy the whole thread on `Ctrl+Shift+C`, from the "Copy the whole side thread" command palette
   action and from `copy thread` in the footer. The key is free in the supported host keymaps, and
   every path keeps the selection guard and the existing clipboard feedback.
+- Report the unsupported reasoning state from the toggle instead of changing the setting, because
+  a setting changed where it cannot take effect has no visible result, and a reader told that
+  reasoning is off while the answer still thinks has been told something false. The header cell
+  and the palette action are one toggle, and the state is global to the plugin.

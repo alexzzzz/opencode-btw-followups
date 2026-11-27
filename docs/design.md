@@ -765,6 +765,11 @@ setting is, so a reader sees before asking that the answer will still think. Onl
 model reads `on` or `off`, from the setting. The unsupported state reads `reasoning n/a`, which
 says that the request goes out unchanged.
 
+The cell and the palette action run the same toggle, and on an unsupported model that toggle
+reports why instead of changing the setting. A setting changed where it cannot take effect has no
+visible result, and a reader told that reasoning is off while the answer still thinks has been
+told something false, so the unsupported state is the whole answer for that model.
+
 The header fits the reasoning cell the way it fits every other cell, and the cell gives way
 early. With a count of `1 answered` and three rows above, the cells give way in this order: the
 count, the wording of the state, the state itself, the notice of what is above, the marker's

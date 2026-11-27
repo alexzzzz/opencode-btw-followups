@@ -108,6 +108,16 @@ export default {
     }
 
     const flipReasoning = () => {
+      const model = reasoningModel()
+      if (!model || reasoningSupport(model) === "unsupported") {
+        tell(
+          "This model has no known way to turn reasoning off, so side answers keep thinking.",
+          "warning",
+          "/btw",
+          3000,
+        )
+        return
+      }
       const enabled = !reasoningOn()
       const token = ++flipToken
       setReasoningOn(enabled)
