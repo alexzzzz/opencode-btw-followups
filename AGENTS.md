@@ -286,3 +286,17 @@ copies drift.
 - Copy the whole thread on `Ctrl+Shift+C`, from the "Copy the whole side thread" command palette
   action and from `copy thread` in the footer. The key is free in the supported host keymaps, and
   every path keeps the selection guard and the existing clipboard feedback.
+
+## Agent skills
+
+### Issue tracker
+
+Issues and specs for this repo live in GitHub Issues. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five canonical triage roles map to labels with the same names. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context layout: one root `GLOSSARY.md` and `docs/adr/`. See `docs/agents/domain.md`.
