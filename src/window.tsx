@@ -52,8 +52,8 @@ import {
   HEADER_TITLE,
   headerRow,
   type HeaderRow,
-  type ReasoningState,
 } from "./header.ts"
+import type { ReasoningState } from "./reasoning.ts"
 import {
   answerToken,
   emptyPointer,
@@ -570,8 +570,8 @@ export function ThreadDialog(props: {
   readonly state: () => SideState
   readonly syntax: SyntaxStyle
   readonly rows: () => number
-  readonly reasoning?: () => ReasoningState
-  readonly onReasoning?: () => void
+  readonly reasoning: () => ReasoningState
+  readonly onReasoning: () => void
   readonly sessionMoved: () => boolean
   readonly remember: (draft: string, place: Reading | undefined) => void
   readonly ask: (question: string) => void
@@ -903,7 +903,7 @@ export function ThreadDialog(props: {
       readingView().above,
       QUICK_PROMPTS.length,
       listed(),
-      props.reasoning?.() ?? "on",
+      props.reasoning(),
     )
   const listRoom = () => listTranscriptRoom(props.rows(), composerRows())
   const card = createMemo(() => quickCardGeometry(QUICK_PROMPTS, width(), listRoom()))
@@ -947,7 +947,7 @@ export function ThreadDialog(props: {
           setChosen(0)
           setListed(!listed())
         }}
-        onReasoning={() => props.onReasoning?.()}
+        onReasoning={props.onReasoning}
         onClose={props.close}
       />
 

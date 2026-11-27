@@ -1,5 +1,11 @@
 import { describe, expect, test } from "bun:test"
-import { reasoningOptions, reasoningSupport, type ReasoningModel } from "../src/reasoning.ts"
+import {
+  modelEntry,
+  reasoningOptions,
+  reasoningStateLabel,
+  reasoningSupport,
+  type ReasoningModel,
+} from "../src/reasoning.ts"
 
 const model = (over: Partial<ReasoningModel> = {}): ReasoningModel => ({
   providerID: "anthropic",
@@ -114,6 +120,26 @@ describe("reasoningOptions", () => {
     ).toEqual({ state: "unsupported" })
   })
 
+  test("an OpenAI model without reasoning is unsupported", () => {
+    expect(
+      off({ providerID: "openai", modelID: "gpt-4o", package: "@opencode/ai/providers/openai" }),
+    ).toEqual({ state: "unsupported" })
+  })
+
+  test("an unknown model on an OpenAI provider is unsupported", () => {
+    expect(off(bare("openai"))).toEqual({ state: "unsupported" })
+  })
+
+  test("an older Claude model without a thinking switch is unsupported", () => {
+    expect(off({ providerID: "anthropic", modelID: "claude-3-haiku-20240307" })).toEqual({
+      state: "unsupported",
+    })
+  })
+
+  test("an older Gemini model without a thinking budget is unsupported", () => {
+    expect(off(bare("google", "gemini-1.5-pro"))).toEqual({ state: "unsupported" })
+  })
+
   test("a base GPT-5 model that always reasons is unsupported", () => {
     expect(
       off({ providerID: "openai", modelID: "gpt-5", package: "@opencode/ai/providers/openai" }),
@@ -152,5 +178,34 @@ describe("reasoningSupport", () => {
     expect(
       reasoningSupport({ providerID: "openai", modelID: "o3-mini", package: "@opencode/ai/providers/openai" }),
     ).toBe("unsupported")
+  })
+})
+
+describe("reasoningStateLabel", () => {
+  test("a supported model follows the toggle", () => {
+    expect(reasoningStateLabel(true, "supported")).toBe("on")
+    expect(reasoningStateLabel(false, "supported")).toBe("off")
+  })
+
+  test("an unsupported model reads unsupported whatever the toggle says", () => {
+    expect(reasoningStateLabel(true, "unsupported")).toBe("unsupported")
+    expect(reasoningStateLabel(false, "unsupported")).toBe("unsupported")
+  })
+})
+
+describe("modelEntry", () => {
+  const entry: ReasoningModel = {
+    providerID: "openai",
+    modelID: "gpt-5.1",
+    package: "@opencode/ai/providers/openai",
+  }
+
+  test("the catalogue entry wins over the compact ref", () => {
+    expect(modelEntry({ providerID: "openai", modelID: "gpt-5.1" }, [entry])).toBe(entry)
+  })
+
+  test("a ref the catalogue does not know resolves to nothing", () => {
+    expect(modelEntry({ providerID: "openai", modelID: "gpt-4o" }, [entry])).toBeUndefined()
+    expect(modelEntry(undefined, [entry])).toBeUndefined()
   })
 })

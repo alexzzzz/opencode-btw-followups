@@ -691,6 +691,12 @@ The header carries one cell that says whether side questions are sent with reaso
 click on it flips the setting. `src/reasoning.ts` decides what a request carries,
 `src/contract.ts` carries the value between the two halves, and `src/index.ts` applies it.
 
+The header asks about the same full model entry the server hook reads, resolved from the window's
+session: `data.session.get(sessionID)?.model` names the model and
+`data.location.model.list(location)` carries its package and compatibility. A model the
+catalogue does not know falls back to the session's compact ref, which has neither, so the header
+reports the unsupported state rather than guessing from the provider id alone.
+
 The setting lives on the server because the terminal half outlives nothing. A window closes, a
 terminal restarts, a reload rebuilds the terminal half with its signals at their defaults, and a
 value kept there would be lost at each of those points. The server half is set up once per host
@@ -721,18 +727,22 @@ holds the rows:
 - Anthropic and Anthropic-compatible endpoints send `thinking: { type: "disabled" }`. The
   `anthropic-messages` protocol declares `"disabled"` in the thinking type union, and an
   endpoint that speaks that protocol accepts the same field.
-- OpenAI, Azure, xAI, Mistral and Copilot models send `reasoningEffort: "none"`. The effort
-  enum in those protocols carries `"none"`, which is the documented value for an answer with no
-  reasoning.
+- OpenAI, Azure, xAI, Mistral and Copilot models send `reasoningEffort: "none"`, but only for
+  a model id the table knows to reason and to accept that value: `gpt-5.1`, `magistral`,
+  `mistral-large` and `grok-3`/`grok-4` today. The effort enum in those protocols carries
+  `"none"`, which is the documented value for an answer with no reasoning, and a model without
+  reasoning such as `gpt-4o` rejects the field, so it is unsupported instead.
 - Gemini models send `thinkingConfig: { thinkingBudget: 0, includeThoughts: false }`. A zero
   budget is the off value the protocol documents for the models that accept one, and
-  `includeThoughts` false keeps thought text out of the reply.
+  `includeThoughts` false keeps thought text out of the reply. The budget arrives with Gemini 2.5,
+  so an older id is unsupported.
 - Cohere and Z.ai models send `thinking: { type: "disabled" }`, the value `cohere-chat` and
-  `zai-chat` both declare.
-- Alibaba models send `enableThinking: false`, the boolean `alibaba-chat` declares.
+  `zai-chat` both declare, and only a model that has the field: `command-a` and GLM 4.5 or later.
+- Alibaba models send `enableThinking: false`, the boolean `alibaba-chat` declares, and only a
+  Qwen 3 model carries it.
 - Venice models send `reasoning: { enabled: false }`, the flag in `venice-chat`.
-- Bedrock sends `thinking: { type: "disabled" }` for a Claude model only, because
-  `bedrock-converse` says that value applies to Claude models alone.
+- Bedrock sends `thinking: { type: "disabled" }` for a Claude model that has a thinking block,
+  because `bedrock-converse` says that value applies to Claude models alone.
 
 The family comes from the model's package first and from the provider id second, because a
 gateway serves another vendor's model under its own id. A Claude model reached through the
@@ -743,16 +753,17 @@ unsupported.
 Some models stay unsupported on purpose. A Bedrock model that is not Claude has an effort list
 of `high`, `low`, `max`, `medium` and `xhigh` with no off value, and an o-series, base `gpt-5`,
 `gpt-oss`, `codex` or DeepSeek reasoner model reasons whatever the effort says, so the table
-returns unsupported instead of an option the provider would reject. A model whose catalogue
-entry sets `requireReasoning` is unsupported for the same reason, because the field is required
-and cannot be turned off. An option a provider rejects fails the whole request and costs the
-reader the answer, while an unsupported state costs only the wait, so nothing is sent that the
-protocol schema does not declare.
+returns unsupported instead of an option the provider would reject. A model id the table cannot
+place inside a known family is unsupported for the same reason: an option is sent only to a model
+the table can name. A model whose catalogue entry sets `requireReasoning` is unsupported for the
+same reason, because the field is required and cannot be turned off. An option a provider rejects
+fails the whole request and costs the reader the answer, while an unsupported state costs only the
+wait, so nothing is sent that the protocol schema does not declare.
 
-The header reads `on` whenever the setting is on, and asks `reasoningSupport` about the selected
-model only once it is off. A model that cannot be silenced therefore never turns a working
-default into a warning, and the state appears when the reader has a reason to look at it. The
-unsupported state reads `reasoning n/a`, which says that the request went out unchanged.
+The header reads `unsupported` whenever the selected model has no known control, whatever the
+setting is, so a reader sees before asking that the answer will still think. Only a supported
+model reads `on` or `off`, from the setting. The unsupported state reads `reasoning n/a`, which
+says that the request goes out unchanged.
 
 The header fits the reasoning cell the way it fits every other cell, and the cell gives way
 early. With a count of `1 answered` and three rows above, the cells give way in this order: the
@@ -778,8 +789,10 @@ before a flip and sent after it goes out with the new value, and a batch asked t
 out with one value because it is one request. A retry goes through the same call, so it obeys
 the value current when it is retried. A request already in flight keeps the value it was sent
 with, because the server read the stored setting when the request arrived and applied the option
-to that request alone. The terminal awaits a pending write before it calls `session.generate`,
-so a click followed in the same tick by a send cannot let the server read the previous value.
+to that request alone. The adapter passes the send-time value into `generate`, and the terminal
+awaits the write of exactly that value before it calls `session.generate`, skipping the write when
+the last completed one already carried it, so a click followed in the same tick by a send cannot
+let the server read the previous value.
 
 `src/reasoning.ts` carries no comment. Each row's reason is above, beside the protocol schema
 that declares the option, and a comment in the module would be a second copy of that fact.
@@ -792,7 +805,7 @@ that declares the option, and a comment in the module would be a second copy of 
 OpenTUI `>=0.5.12 <0.10.0`, and Solid `>=1.9.12 <2.0.0`.
 
 The release smoke installs the packed plugin into an empty project with each set, without peer
-dependency overrides. It imports both built entry points in a plain Bun process. The upper bounds
+dependency overrides. It imports every built entry point in a plain Bun process. The upper bounds
 keep untested OpenTUI 0.10 and Solid 2 changes out of the declared range. GitHub Actions runs the
 same check on Windows and Linux.
 
@@ -856,13 +869,13 @@ which it only does for a plugin it loads from a directory. Installed from npm th
 compiler, and the terminal half fails to load with a missing `react/jsx-dev-runtime`.
 
 `prepack` runs the build for both `npm pack` and `npm publish`. A source checkout with no `dist/`
-therefore cannot produce a package without the two entry points. `prepublishOnly` runs the full
+therefore cannot produce a package without the three entry points. `prepublishOnly` runs the full
 release smoke, so a failed package install, import, or deployment check stops publication.
 
 `bun run release:smoke` starts with `bun run check`. It copies only Git source files to a temporary
 directory, verifies that `dist/` is absent, installs the locked development dependencies, and packs
 there. It checks the tarball file list, installs the tarball into empty minimum and current host
-projects, and imports both public entry points with plain Bun. It also runs each host's
+projects, and imports every public entry point with plain Bun. It also runs each host's
 `opencode debug paths config` and exercises `deploy` and `deploy:check` in temporary XDG,
 home-default, and host-reported config directories. Every child process must exit successfully.
 The workflow in `.github/workflows/release.yml` runs the command on Windows and Linux.

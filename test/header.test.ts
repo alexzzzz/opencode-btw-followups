@@ -6,8 +6,8 @@ import {
   HEADER_TITLE,
   headerRow,
   type HeaderRow,
-  type ReasoningState,
 } from "../src/header.ts"
+import type { ReasoningState } from "../src/reasoning.ts"
 
 const rowWidth = (row: HeaderRow) =>
   2 * HEADER_PAD +

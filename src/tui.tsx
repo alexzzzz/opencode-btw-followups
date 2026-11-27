@@ -7,9 +7,14 @@ import { createSyntaxStyle } from "./syntax.ts"
 import { panelHeights } from "./layout.ts"
 import { movedSinceLast, showsBadge, stateOf, type Sides } from "./state.ts"
 import { releasePlayback } from "./playback.ts"
-import { reasoningSupport } from "./reasoning.ts"
-import type { ReasoningState } from "./header.ts"
-import contract from "./contract.ts"
+import {
+  modelEntry,
+  reasoningStateLabel,
+  reasoningSupport,
+  type ReasoningModel,
+  type ReasoningState,
+} from "./reasoning.ts"
+import contract, { enabledOf } from "./contract.ts"
 import { Badge, ThreadDialog } from "./window.tsx"
 
 const ID = "btw-followups.tui"
@@ -23,8 +28,6 @@ type ToastVariant = Notice["variant"]
 
 const errorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error))
 
-const enabledOf = (answer: unknown) => (answer as { enabled: boolean }).enabled
-
 export default {
   id: ID,
   setup(context: Plugin.Context) {
@@ -34,7 +37,9 @@ export default {
     const [reasoningOn, setReasoningOn] = createSignal(true)
     const syntax = createSyntaxStyle(context.theme, (context.renderer as any).nativeScene)
     const reasoningRpc = context.client.rpc(contract)
-    let reasoningWrite: Promise<unknown> | undefined
+    let storedReasoning: boolean | undefined
+    let reasoningWrite: { readonly enabled: boolean; readonly done: Promise<unknown> } | undefined
+    let flipToken = 0
 
     const view = (sessionID: string) => stateOf(sides(), sessionID)
 
@@ -58,37 +63,65 @@ export default {
       } catch {}
     }
 
+    const writeReasoning = (enabled: boolean) => {
+      if (storedReasoning === enabled && reasoningWrite === undefined) return Promise.resolve()
+      if (reasoningWrite?.enabled === enabled) return reasoningWrite.done
+      const entry = { enabled, done: reasoningRpc.set({ enabled }) }
+      reasoningWrite = entry
+      void entry.done.then(
+        (answer) => {
+          if (reasoningWrite !== entry) return
+          storedReasoning = enabledOf(answer) ?? entry.enabled
+          reasoningWrite = undefined
+        },
+        () => {
+          if (reasoningWrite === entry) reasoningWrite = undefined
+        },
+      )
+      return entry.done
+    }
+
     void reasoningRpc
       .get({})
-      .then((answer) => setReasoningOn(enabledOf(answer)))
+      .then((answer) => {
+        const stored = enabledOf(answer)
+        if (stored === undefined || flipToken > 0) return
+        storedReasoning = stored
+        setReasoningOn(stored)
+      })
       .catch(() => {})
 
-    const reasoningState = (): ReasoningState => {
-      if (reasoningOn()) return "on"
-      const model = context.ui.model.current()
-      if (!model) return "unsupported"
-      return reasoningSupport(model) === "supported" ? "off" : "unsupported"
+    const reasoningModel = (): ReasoningModel | undefined => {
+      const sessionID = windowSession()
+      const info = sessionID ? context.data.session.get(sessionID) : undefined
+      const own = info?.model
+      if (!own) return undefined
+      const ref = { providerID: own.providerID, modelID: own.id }
+      const find = (location?: { readonly directory: string }) =>
+        modelEntry(ref, context.data.location.model.list(location))
+      return find(info.location) ?? find() ?? ref
+    }
+
+    const reasoningLabel = (): ReasoningState => {
+      const model = reasoningModel()
+      return reasoningStateLabel(reasoningOn(), model ? reasoningSupport(model) : "unsupported")
     }
 
     const flipReasoning = () => {
       const enabled = !reasoningOn()
+      const token = ++flipToken
       setReasoningOn(enabled)
-      const write = reasoningRpc.set({ enabled })
-      reasoningWrite = write
-      void write
+      void writeReasoning(enabled)
         .then((answer) => {
-          if (reasoningWrite !== write) return
-          const stored = enabledOf(answer)
+          if (token !== flipToken) return
+          const stored = enabledOf(answer) ?? enabled
           setReasoningOn(stored)
           tell(`Reasoning in side answers is ${stored ? "on" : "off"}.`, "info", "/btw", 2000)
         })
         .catch((error) => {
-          if (reasoningWrite !== write) return
+          if (token !== flipToken) return
           setReasoningOn(!enabled)
           tell(errorMessage(error), "error")
-        })
-        .finally(() => {
-          if (reasoningWrite === write) reasoningWrite = undefined
         })
     }
 
@@ -137,9 +170,8 @@ export default {
     }
 
     const thread: SessionThread = createSessionThread({
-      async generate(sessionID, prompt, signal) {
-        const write = reasoningWrite
-        if (write) await write.catch(() => {})
+      async generate(sessionID, prompt, signal, reasoning) {
+        await writeReasoning(reasoning).catch(() => {})
         return context.client.session.generate({ sessionID, prompt }, { signal })
       },
       reasoning: () => reasoningOn(),
@@ -185,7 +217,7 @@ export default {
             state={() => view(sessionID)}
             syntax={syntax}
             rows={() => rows()}
-            reasoning={reasoningState}
+            reasoning={reasoningLabel}
             onReasoning={flipReasoning}
             sessionMoved={() => movedSinceLast(view(sessionID).turns, spoken(sessionID))}
             remember={(draft, place) => thread.remember(sessionID, draft, place)}
