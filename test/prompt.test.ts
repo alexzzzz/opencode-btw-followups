@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { MARKER, thread } from "../src/prompt.ts"
+import { isSideQuestion, MARKER, thread } from "../src/prompt.ts"
 
 describe("thread", () => {
   test("a first question carries the rules and nothing else", () => {
@@ -70,5 +70,23 @@ describe("MARKER", () => {
   test("it says the questions are about the conversation, which is what they are", () => {
     expect(MARKER).toContain("side questions")
     expect(MARKER).toContain("conversation so far")
+  })
+})
+
+describe("isSideQuestion", () => {
+  test("a prompt that opens with the marker is a side question", () => {
+    expect(isSideQuestion(thread([], ["anything"]))).toBe(true)
+  })
+
+  test("a normal prompt is not a side question", () => {
+    expect(isSideQuestion("refactor the parser")).toBe(false)
+  })
+
+  test("a prompt that only mentions the marker later is not a side question", () => {
+    expect(isSideQuestion(`quote this: ${MARKER}`)).toBe(false)
+  })
+
+  test("the marker alone is a side question", () => {
+    expect(isSideQuestion(MARKER)).toBe(true)
   })
 })
