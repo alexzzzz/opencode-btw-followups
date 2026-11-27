@@ -7,8 +7,14 @@ dialog that keeps a thread.
 
 Run `bun run check` before you call a change done. It typechecks, then runs the tests, then
 builds the package the npm release ships, in that order. `bun test` runs the tests alone. The
-TUI half has no behavioural test, so a change to the dialog, the command or the queue also
-needs one pass by hand in a terminal.
+fixed long-thread benchmark is `bun scripts/benchmark-playback.ts`, and its measured result lives
+in `docs/design.md`. The TUI half has only the markdown pointer probe described in
+`docs/design.md`, so a change to the dialog, the command or the queue also needs one pass by hand in
+a terminal.
+
+Run `bun run release:smoke` before a release. It starts with `bun run check`, then packs a clean
+source archive, installs it against the minimum and current host sets, imports both entrypoints,
+and checks deployment against the real host binaries. `npm publish` runs the same gate.
 
 The running TUI loads this plugin from `<config>/plugins/btw-followups` rather than from the
 tree, so `bun run deploy` copies the sources there and `bun run deploy:check` says whether the
@@ -30,6 +36,10 @@ copy is behind. A change the copy does not hold is a change the window never sho
   `src/header.ts`, `src/interaction.ts`, `src/playback.ts` and `src/pointer.ts` are pure, and `test/`
   covers them.
 - `README.md` is what a user reads.
+- `scripts/config-dir.mjs` resolves the config directory reported by `opencode debug paths config`.
+  Deployment and the documented examples use that answer.
+- `scripts/release-smoke.mjs` holds the tested host sets and the clean pack, install, import, and
+  deployment check.
 - `docs/design.md` holds the measurement behind every rule below, plus the install
   evidence and the packaging rules. Read it before you change the dialog, the prompt, the
   install notes or the build.
@@ -61,14 +71,17 @@ copies drift.
   from `context.data.session.message`, so a host that leaves that cache empty for a session
   shows no line at all.
 - Treat an empty answer as a failure and store nothing. The failure names both causes, the
-  tool attempt and a reply cut short, and repeats the question.
+  tool attempt and a reply cut short, and repeats the question. Put the original failed batch
+  back at the front of the pending queue, pause automatic draining, and resume only when the
+  reader asks a new question or retries.
 - Keep the thread whole. Every question resends it, and the reader decides what a side
   conversation should cost them.
-- Clear a thread on `Delete` in an empty composer, and only on a second press, because the
-  composer takes `Delete` as a forward delete whenever it holds text and a dropped thread
-  cannot be recovered: the first press puts what the second would drop in the footer, the
-  warning goes away after four seconds or the first keystroke, and `cleared` drops the turns
-  and the failure while the queue, the request in flight and the draft stay.
+- Clear a thread on `Delete` only while no answer is active, the quick list is closed and the
+  composer is empty, and only on a second press, because the composer takes `Delete` as a forward
+  delete whenever it holds text and a dropped thread cannot be recovered: the first press puts
+  what the second would drop in the footer, the warning goes away after four seconds, the first
+  keystroke or a quick prompt, and `cleared` drops the turns and the failure while the queue,
+  the request in flight and the draft stay. A paused queue stays paused until a new question.
 - Keep the whole tool set in place, and let `RULES` hold tools out of a side answer. The free
   tier refuses a request that carries no real tools.
 
@@ -80,16 +93,22 @@ copies drift.
 - Closing the window ends the window alone and lets a request in flight finish, because a
   question that was asked is not un-asked by closing the view: the queue keeps draining while
   no window is up and answers everything that was asked. A deleted session calls that request
-  off.
+  off and releases its playback memory.
+- Opening a window leaves a stored failure and a paused queue in place, because the reader must
+  see why work stopped and choose a new question or an explicit retry before it resumes.
 - Raise the window for an answer only when the reader is in the session it belongs to.
 - Write out each new answer once, and only once. The computation behind the reveal runs on every
   write to the side state, not only when a turn is added, and an answer lands as two writes a
   couple of milliseconds apart, so the window remembers the turn it is playing and ignores the
-  later runs for that turn; without that, the first write starts the play and the second draws
-  the answer whole. The mark of a played answer lives with the pacing in `src/playback.ts`,
+  later runs for that turn. The mark of a played answer lives with the pacing in `src/playback.ts`,
   keyed by session id, so a window opened later draws a played answer whole while an answer that
-  arrived behind a closed window still plays when the window opens. `firstShown` in
-  `src/playback.ts` decides where the text starts.
+  arrived behind a closed window still plays when the window opens. Reveal advances by grapheme
+  cluster, with a code-point fallback that keeps surrogate pairs whole. The dialog memoizes the
+  mapped turns, and only the newest answer reads the reveal signal, so older answers keep stable
+  values and each tick appends only the new text.
+- Hold copying of the newest answer until its reveal completes. The pointer rail may remain, but
+  a click must not copy partial markdown. `copyable` at the answer-copy boundary holds this rule,
+  separate from token conversion.
 - Hold the newest question's first line at the top of the window while its answer is written out,
   because the transcript follows the bottom and a long answer would otherwise push its own
   question out of view: the window follows a short answer to the bottom, stops following the
@@ -103,8 +122,8 @@ copies drift.
   chose to read. Asking from the window brings the transcript to the end, because after a held
   answer the question just asked would land below the fold.
 - Make the badge a handle on the window: a click on the `btw` badge in the prompt row
-  opens the window for the session that row belongs to, because the badge is the only
-  sign of a question the reader cannot see while it is being answered. Take the session
+  opens the window for the session that row belongs to, because the badge is the sign of active,
+  pending or failed work the reader cannot see while the window is down. Take the session
   from the row, and open the window the way the command opens it, with nothing asked.
 - Close the plugin's own dialog on the way out, and only while that window is up, because the
   host's `dialog.clear()` closes whichever dialog is active. A terminal too short to open a
@@ -154,15 +173,16 @@ copies drift.
   leaves them out. What it names is what the host does not teach: `ctrl+home/end jump`, because
   `Home` and `End` belong to the composer here and to the messages only while nothing is focused,
   and it appears only while the transcript runs past the window; `ctrl+up/down prompts`;
-  `delete clear thread`; and `enter queues` while a question is out. Two facts make four modes: a
-  question is out or nothing is out, and the composer holds text or it does not. The prompt list
-  and the clear are named only over an empty composer, because the first keystroke closes the list
-  and with text in the field `Delete` is a forward delete, and the clear only while the thread
-  holds a turn, because on an empty thread the key does nothing. A question out turns the verb
-  into `enter queues` and takes the clear out, since a clear under a streaming answer drops the
-  thread that answer belongs to. The row gives up its hints from the tail — the clear first, then
-  the jump, then the list, because the list is what an empty composer is for — and the header's
-  `esc close` covers the escape in every mode that fits the panel, so the row spends nothing on it.
+  `delete clear thread`; `enter queues` while a question is out; `enter retry` while a failed
+  queue is paused; and `ctrl+shift+c copy thread`. Two facts make four modes: a question is out or
+  nothing is out, and the composer holds text or it does not. The prompt list is named only over
+  an empty composer. The clear is named only over an idle, empty, unlisted composer with a turn in
+  it, because the first keystroke closes the list, `Delete` is a forward delete while the field
+  holds text, and the key does nothing on an empty thread. A question out turns the verb into
+  `enter queues` and takes the clear out, since a clear under a streaming answer drops the thread
+  that answer belongs to. The row gives up the copy first, then the clear, the jump and the list.
+  Retry stays beside the remaining hints until only the jump fits. The header's `esc close` covers
+  the escape in every mode that fits the panel, so the row spends nothing on it.
   Read the composer's text on the renderer's `frame` event rather than from a signal, because the
   host's textarea reports typing alone and a recall, the draft put back at mount and the submit
   that empties the field all write it without a word.
@@ -176,11 +196,11 @@ copies drift.
   open the window takes the rows the terminal has left over, never more than the list needs,
   because a composer shorter than its cap leaves rows that would otherwise go unused. The list
   is a block of its own width, centred under the header, lifted off the transcript by the raised
-  background and a blank row rather than by a frame; a panel narrower than the block gives it
-  the panel width and the prompts wrap, and a panel with nothing to grow into drops the blank
-  row. `src/quick.ts` owns the prompts, the marker, the block's width and its dress,
-  `src/layout.ts` owns the rows the open list may take, and `test/quick.test.ts` and
-  `test/layout.test.ts` hold that in place.
+  background and a blank row rather than by a frame. `src/quick.ts` measures the width and wrapped
+  rows from the prompt text, panel width, number column, gap and padding. The padded dress is used
+  only when it fits the transcript room, and a list that still does not fit becomes a scroll
+  viewport that keeps the chosen prompt's first row visible. `src/layout.ts` owns the rows the open
+  list may take, and `test/quick.test.ts` and `test/layout.test.ts` hold that in place.
 - Make the list answer the keyboard as well as the mouse: Down moves the pick and wraps from the
   last prompt to the first, Up moves it back and wraps from the first to the last, Enter asks
   the picked prompt, Esc closes the list and leaves the window standing, and a hover puts the pick
@@ -189,7 +209,8 @@ copies drift.
   pick is the row in the base colour with an accent number; the rest stay muted and faint. The
   bindings sit in the modal layer beside the scroll keys and are enabled only while the list is
   open, so Enter still asks a typed question and the arrows still move the cursor otherwise.
-  `nextChoice` in `src/quick.ts` moves the pick, and `test/quick.test.ts` holds it in place.
+  `nextChoice` in `src/quick.ts` moves the pick, and `quickChoiceScroll` keeps that pick inside
+  the viewport. `test/quick.test.ts` holds both in place.
   Delete is held off while the list is open, so a menu never drops the thread behind it.
 - Close the list on the first keystroke in the composer, because a reader who starts typing has
   decided that none of the prepared questions says what they want, and the list is then something
@@ -201,7 +222,10 @@ copies drift.
   the field's own submit.
 - Ask a quick prompt the way a typed question is asked, and leave the composer alone, so
   that a click never throws away what the reader typed. The click is a mouse up, the way the
-  host sends its own.
+  host sends its own. Starting the request disarms an armed clear warning.
+- Keep a failed question in the transcript with a `retry question` label, and let `Enter` retry
+  it while the composer is empty. Both actions resume the preserved queue and leave the main
+  conversation untouched.
 - Draw no frame of your own. The host draws the panel's frame, and a second box inside it reads
   as a box inside a box; separate a floating part with the raised background and a blank row
   instead. The left rails are lines rather than frames, and they stay.
@@ -220,6 +244,9 @@ copies drift.
   and the unit a reader wants: `renderNode` hands each top-level block its own renderable and
   inline tokens never reach it, so a click on a bold word is a click on its paragraph.
   `src/pointer.ts` turns the token into plain text and `test/pointer.test.ts` holds it.
+- Treat the newest answer as copyable only after its reveal completes. The rail may remain, but
+  `pointerAt` returns no copy text while its `copyable` guard is false. Older answers keep the
+  completed copy path.
 - Return the renderable `defaultRender` built, with the handler set on it, rather than a box of
   the plugin's own around it: a wrapper turns `canUpdateInPlace` off and the reveal rewrites the
   content once per step for a second and a half, so every block would be rebuilt on every step.
@@ -236,9 +263,9 @@ copies drift.
 - Draw the rail in `text.muted` and not in the accent, because the accent already says "this is
   what you asked" on the question's rail, and the reader should not have to tell two accents
   apart.
-- Hold the rail off, and hold the copy and the quick prompts off, while a selection is being
-  dragged or already holds text, because a reader who drags to copy by hand is not asking for the
-  block. `selecting()` in `src/window.tsx` is the one guard behind all three.
+- Hold the rail off, and hold the block copy, the quick prompts and whole-thread copy off, while a
+  selection is being dragged or already holds text, because a reader who drags to copy by hand is
+  not asking for the block. `selecting()` in `src/window.tsx` is the one guard behind all four.
 
 ### The session prompt
 
@@ -256,3 +283,6 @@ copies drift.
   `test/interaction.test.ts` holds it in place.
 - Ask a pick in the side thread, which is what both a click and `Enter` do, because the prompts
   are the window's own and a side question leaves the conversation alone.
+- Copy the whole thread on `Ctrl+Shift+C`, from the "Copy the whole side thread" command palette
+  action and from `copy thread` in the footer. The key is free in the supported host keymaps, and
+  every path keeps the selection guard and the existing clipboard feedback.

@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test"
+import { spawnSync } from "node:child_process"
 import { readFileSync } from "node:fs"
+import { join } from "node:path"
+import { fileURLToPath } from "node:url"
 
 const markup = () => {
   const source = readFileSync(new URL("../src/window.tsx", import.meta.url), "utf8")
@@ -22,3 +25,17 @@ describe("the answer's markdown", () => {
     expect(colour).toBeLessThan(content)
   })
 })
+
+test("the host markdown copies a completed block and draws its pointer rail", () => {
+  const root = fileURLToPath(new URL("..", import.meta.url))
+  const result = spawnSync(
+    process.execPath,
+    ["--preload", "@opentui/solid/preload", join("test", "fixtures", "markdown-pointer.ts")],
+    { cwd: root, encoding: "utf8" },
+  )
+  if (result.error) throw result.error
+  if (result.status !== 0) {
+    throw new Error([result.stdout, result.stderr].filter(Boolean).join("\n"))
+  }
+  expect(result.status).toBe(0)
+}, 15000)

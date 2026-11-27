@@ -12,11 +12,17 @@ const transcriptRows = (terminalRows: number) => {
   return Math.max(0, Math.min(share, leftOver))
 }
 
-const listTranscriptRows = (terminalRows: number, composerRows: number, needed: number) => {
+export const listTranscriptRoom = (terminalRows: number, composerRows: number) => {
   const share = Math.floor(terminalRows * TRANSCRIPT_SHARE)
   const leftOver = terminalRows - PANEL_CHROME - composerRows
-  return Math.max(transcriptRows(terminalRows), Math.min(needed, share, leftOver))
+  return Math.max(0, Math.min(share, leftOver))
 }
+
+const listTranscriptRows = (terminalRows: number, composerRows: number, needed: number) =>
+  Math.max(
+    transcriptRows(terminalRows),
+    Math.min(needed, listTranscriptRoom(terminalRows, composerRows)),
+  )
 
 export type PanelInput = {
   readonly rows: number

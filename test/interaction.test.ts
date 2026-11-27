@@ -4,7 +4,9 @@ import {
   footerMode,
   hints,
   opensFromSession,
+  retryQuestion,
   SESSION_OPEN_BIND,
+  THREAD_COPY_BIND,
   type InteractionMode,
 } from "../src/interaction.ts"
 import {
@@ -21,7 +23,8 @@ const mode = (over: Partial<InteractionMode> = {}): InteractionMode => ({
   waiting: false,
   typed: false,
   listed: false,
-  canClear: true,
+  hasTurns: true,
+  canRetry: false,
   canJump: true,
   ...over,
 })
@@ -39,6 +42,8 @@ describe("the key table", () => {
       ["ctrl+up", "list"],
       ["ctrl+down", "step_down"],
       ["delete", "clear"],
+      ["enter", "retry"],
+      ["ctrl+shift+c", "copy_thread"],
       ["up", "recall_older"],
       ["down", "recall_newer"],
       ["up", "choose_up"],
@@ -58,6 +63,7 @@ describe("the key table", () => {
       "list",
       "step_down",
       "clear",
+      "copy_thread",
       "recall_older",
       "recall_newer",
     ]) {
@@ -77,12 +83,45 @@ describe("the key table", () => {
     expect(listed.has("close_list")).toBe(true)
   })
 
-  test("Delete stays a forward delete while the composer holds text", () => {
+  test("Delete is enabled only for an idle, empty, unlisted composer", () => {
     const clear = (m: InteractionMode) =>
       bindings(() => m).find((binding) => binding.bind === "delete")
     expect(clear(mode())?.enabled()).toBe(true)
+    expect(clear(mode({ waiting: true }))?.enabled()).toBe(false)
     expect(clear(mode({ typed: true }))?.enabled()).toBe(false)
     expect(clear(mode({ listed: true }))?.enabled()).toBe(false)
+  })
+
+  test("Enter retries only an idle failed thread with an empty composer", () => {
+    const retry = (m: InteractionMode) =>
+      bindings(() => m).find((binding) => binding.intent === "retry")
+    expect(retry(mode({ canRetry: true }))?.enabled()).toBe(true)
+    expect(retry(mode())?.enabled()).toBe(false)
+    expect(retry(mode({ canRetry: true, waiting: true }))?.enabled()).toBe(false)
+    expect(retry(mode({ canRetry: true, typed: true }))?.enabled()).toBe(false)
+    expect(retry(mode({ canRetry: true, listed: true }))?.enabled()).toBe(false)
+  })
+
+  test("the retry question label is available only for a paused failure and an empty composer", () => {
+    expect(retryQuestion(mode({ canRetry: true }))).toBe(true)
+    expect(retryQuestion(mode())).toBe(false)
+    expect(retryQuestion(mode({ canRetry: true, typed: true }))).toBe(false)
+  })
+
+  test("whole-thread copy has a keyboard bind and a palette action when a thread exists", () => {
+    expect(THREAD_COPY_BIND).toBe("ctrl+shift+c")
+    const copy = bindings(() => mode()).find((binding) => binding.intent === "copy_thread")
+    expect(copy).toMatchObject({
+      id: "session.aside.copy",
+      bind: THREAD_COPY_BIND,
+      title: "Copy the whole side thread",
+      palette: true,
+    })
+    expect(copy?.enabled()).toBe(true)
+    expect(
+      bindings(() => mode({ hasTurns: false })).find((binding) => binding.intent === "copy_thread")
+        ?.enabled(),
+    ).toBe(false)
   })
 
   test("the list effect follows the list state", () => {
@@ -155,7 +194,7 @@ describe("the hint table", () => {
   })
 
   test("every key the row names is a bind the window takes", () => {
-    const bound = new Set(["ctrl+up/down", "ctrl+home/end", "delete", "enter"])
+    const bound = new Set(["ctrl+up/down", "ctrl+home/end", "delete", "ctrl+shift+c", "enter"])
     for (const m of MODES) {
       for (const [key] of hintsFor(m, { panelWidth: 200 })) expect(bound.has(key)).toBe(true)
     }
@@ -191,6 +230,18 @@ describe("the hint table", () => {
     expect(hints(IDLE, 18).map(([key]) => key)).toEqual(["ctrl+home/end"])
     expect(hints(IDLE, 10)).toEqual([])
   })
+
+  test("whole-thread copy is named only when a wider tier has room", () => {
+    expect(hints(IDLE, 63).some(([key]) => key === THREAD_COPY_BIND)).toBe(false)
+    expect(hints(IDLE, 200).map(([key]) => key)).toEqual([
+      "ctrl+up/down",
+      "ctrl+home/end",
+      "delete",
+      THREAD_COPY_BIND,
+    ])
+    expect(hints(IDLE_TYPED, 200).map(([key]) => key)).toEqual(["ctrl+home/end", THREAD_COPY_BIND])
+    expect(hints(mode({ hasTurns: false }), 200).some(([key]) => key === THREAD_COPY_BIND)).toBe(false)
+  })
 })
 
 describe("the hints of a mode", () => {
@@ -198,17 +249,29 @@ describe("the hints of a mode", () => {
     expect(keyNames(IDLE)).toEqual(["ctrl+up/down", "ctrl+home/end", "delete"])
   })
 
+  test("a failed thread names the retry before the other idle hints", () => {
+    expect(hints(mode({ canRetry: true }), 200).map(([key]) => key)).toEqual([
+      "enter",
+      "ctrl+up/down",
+      "ctrl+home/end",
+      "delete",
+      THREAD_COPY_BIND,
+    ])
+    expect(keyNames(mode({ canRetry: true, typed: true }))).not.toContain("enter")
+    expect(keyNames(mode({ canRetry: true, listed: true }))).not.toContain("enter")
+  })
+
   test("a thread with nothing in it drops the clear", () => {
-    expect(keyNames(mode({ canClear: false }))).toEqual(["ctrl+up/down", "ctrl+home/end"])
+    expect(keyNames(mode({ hasTurns: false }))).toEqual(["ctrl+up/down", "ctrl+home/end"])
   })
 
   test("a transcript that fits drops the jump, because there is nowhere to jump", () => {
     expect(keyNames(mode({ canJump: false }))).toEqual(["ctrl+up/down", "delete"])
-    expect(keyNames(mode({ typed: true, canJump: false }))).toEqual([])
+    expect(keyNames(mode({ typed: true, canJump: false }))).toEqual(["ctrl+shift+c"])
   })
 
-  test("a typed question names the jump alone, since Enter needs no teaching", () => {
-    expect(keyNames(IDLE_TYPED)).toEqual(["ctrl+home/end"])
+  test("a typed question names the jump and the keyboard copy", () => {
+    expect(keyNames(IDLE_TYPED)).toEqual(["ctrl+home/end", "ctrl+shift+c"])
   })
 
   test("a waiting window with an empty composer names the list and the jump", () => {
@@ -216,7 +279,7 @@ describe("the hints of a mode", () => {
   })
 
   test("a waiting window with a question typed names the queue", () => {
-    expect(keyNames(WAITING_TYPED)).toEqual(["enter", "ctrl+home/end"])
+    expect(keyNames(WAITING_TYPED)).toEqual(["enter", "ctrl+home/end", "ctrl+shift+c"])
   })
 
   test("no row names a key the reader already knows", () => {
@@ -237,9 +300,10 @@ describe("the hints of a mode", () => {
     expect(keyNames(WAITING_TYPED)).not.toContain("ctrl+up/down")
   })
 
-  test("the clear is named only over a thread with a turn in it", () => {
+  test("the clear is named only over an idle thread with a turn in it", () => {
     expect(keyNames(IDLE)).toContain("delete")
-    expect(keyNames(mode({ canClear: false }))).not.toContain("delete")
+    expect(keyNames(mode({ hasTurns: false }))).not.toContain("delete")
+    expect(keyNames(mode({ listed: true }))).not.toContain("delete")
   })
 
   test("the jump is named whenever the transcript runs past the window", () => {

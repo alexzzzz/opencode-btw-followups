@@ -1,11 +1,21 @@
-import { type Accessor, createEffect, createSignal, For, onCleanup, onMount, Show } from "solid-js"
+import {
+  type Accessor,
+  createEffect,
+  createMemo,
+  createSignal,
+  For,
+  onCleanup,
+  onMount,
+  Show,
+} from "solid-js"
 import {
   BorderChars,
   createTextAttributes,
   type BoxRenderable,
   type ColorInput,
   type KeyEvent,
-  type MarkdownRenderable,
+  type MarkdownBlock,
+  MarkdownRenderable,
   type MouseEvent,
   type RenderNodeContext,
   type ScrollBoxRenderable,
@@ -16,6 +26,7 @@ import type { Plugin } from "@opencode/plugin/tui"
 import { usePlugin } from "@opencode/plugin/tui"
 import {
   bindings,
+  retryQuestion,
   type Binding,
   type Hint,
   type InteractionMode,
@@ -31,13 +42,27 @@ import {
   FOOTER_PAD,
   footerHints,
 } from "./footer.ts"
-import { COMPOSER_ROWS, panelHeights } from "./layout.ts"
+import { COMPOSER_ROWS, listTranscriptRoom, panelHeights } from "./layout.ts"
 import { RAIL } from "./rail.ts"
 import { createReading, type ReadingView, type Scrollbox } from "./reading.ts"
 import { HEADER_GAP, HEADER_PAD, HEADER_TITLE, CLOSE_LABEL, headerRow, type HeaderRow } from "./header.ts"
-import { emptyPointer, pointerAt, samePointer, type AnswerPointer, type PointerSurface } from "./pointer.ts"
+import {
+  answerToken,
+  emptyPointer,
+  pointerAt,
+  samePointer,
+  type AnswerPointer,
+  type AnswerToken,
+  type PointerSurface,
+} from "./pointer.ts"
 import { NOT_BROWSING, recalled, type Browse } from "./history.ts"
-import { QUICK_PROMPTS, nextChoice, quickCardDress, quickCardRows, quickCardWidth } from "./quick.ts"
+import {
+  QUICK_PROMPTS,
+  nextChoice,
+  quickCardGeometry,
+  quickChoiceScroll,
+  type QuickCardGeometry,
+} from "./quick.ts"
 import { createAnswerPlayback, type Timer } from "./playback.ts"
 import { gapBelow, type Failure, type Reading, type SideState } from "./state.ts"
 
@@ -52,6 +77,8 @@ const FRAME_MS = 90
 const DASH = "┈"
 
 const MOVED_LABEL = " the session behind btw carried on "
+
+const MODERN_MARKDOWN = "renderBlock" in MarkdownRenderable.prototype
 
 const CONFIRM_MS = 4000
 
@@ -156,7 +183,7 @@ export function Badge(props: {
   )
 }
 
-function Turn(props: {
+export function Turn(props: {
   readonly question: string
   readonly answer?: () => string
   readonly waiting?: boolean
@@ -164,6 +191,7 @@ function Turn(props: {
   readonly anchor?: (element: BoxRenderable) => void
   readonly copy: (text: string) => void
   readonly selecting: () => boolean
+  readonly copyable?: () => boolean
   readonly theme: Theme
   readonly syntax: SyntaxStyle
 }) {
@@ -172,22 +200,43 @@ function Turn(props: {
 
   let blocks: MarkdownRenderable | undefined
   let answer: BoxRenderable | undefined
+  const states = new Map<number, { token: AnswerToken; renderable: unknown }>()
   const [pointer, setPointer] = createSignal<AnswerPointer>(emptyPointer, { equals: samePointer })
 
   const surface = (): PointerSurface => ({ answer, markdown: blocks })
+  const canCopy = () => props.copyable?.() ?? true
 
-  const track = (event: MouseEvent) => setPointer(pointerAt(event, surface(), props.selecting))
+  const track = (event: MouseEvent) =>
+    setPointer(pointerAt(event, surface(), props.selecting, canCopy))
 
   const rail = () => pointer().rail
 
-  const clickable = (_token: unknown, context: RenderNodeContext) => {
-    const renderable = context.defaultRender()
-    if (!renderable) return renderable
+  const click = (renderable: NonNullable<ReturnType<RenderNodeContext["defaultRender"]>>) => {
     renderable.onMouseUp = (event: MouseEvent) => {
-      const result = pointerAt(event, surface(), props.selecting)
+      const result = pointerAt(event, surface(), props.selecting, canCopy)
       if (result.copy !== "") props.copy(result.copy)
     }
     return renderable
+  }
+
+  const clickableToken = (_token: unknown, context: RenderNodeContext) => {
+    const renderable = context.defaultRender()
+    return renderable ? click(renderable) : renderable
+  }
+
+  const clickableBlock = (block: MarkdownBlock, context: RenderNodeContext) => {
+    const renderable = context.defaultRender()
+    if (!renderable) return renderable
+    states.set(block.index, { token: answerToken(block), renderable })
+    return click(renderable)
+  }
+
+  const currentStates = () => {
+    const current = new Set(blocks?.blocks.map((_block, index) => index))
+    return [...states]
+      .filter(([index]) => current.has(index))
+      .sort(([left], [right]) => left - right)
+      .map(([, state]) => state)
   }
 
   return (
@@ -227,14 +276,21 @@ function Turn(props: {
               <markdown
                 syntaxStyle={props.syntax}
                 fg={props.theme.markdown.text}
-                renderNode={clickable}
+                {...(MODERN_MARKDOWN
+                  ? { renderBlock: clickableBlock }
+                  : { renderNode: clickableToken, internalBlockMode: "top-level" }) as any}
                 content={props.answer!()}
                 conceal
                 streaming
-                internalBlockMode="top-level"
                 tableOptions={{ style: "grid", cellPaddingX: 1 }}
                 ref={(element) => {
                   blocks = element
+                  if (MODERN_MARKDOWN) {
+                    Object.defineProperty(element, "_blockStates", {
+                      configurable: true,
+                      get: currentStates,
+                    })
+                  }
                 }}
               />
             </box>
@@ -331,32 +387,50 @@ function QuickRows(props: {
 
 function QuickList(props: {
   readonly theme: Theme
-  readonly width: number
-  readonly room: number
+  readonly geometry: QuickCardGeometry
   readonly chosen: number
   readonly onChoose: (index: number) => void
   readonly onAsk: (prompt: string) => void
 }) {
-  const padded = () => quickCardDress(QUICK_PROMPTS.length, props.room) === "padded"
+  let list: ScrollBoxRenderable | undefined
+
+  createEffect(() => {
+    props.chosen
+    props.geometry
+    queueMicrotask(() => {
+      if (!list || list.isDestroyed) return
+      list.scrollTo(quickChoiceScroll(props.geometry, props.chosen, list.scrollTop))
+    })
+  })
 
   return (
     <box position="absolute" left={0} top={1} width="100%" zIndex={1} alignItems="center">
-      <box
-        flexDirection="column"
-        width={Math.min(quickCardWidth(QUICK_PROMPTS), Math.max(0, props.width - 2))}
-        paddingLeft={2}
-        paddingRight={2}
-        paddingTop={padded() ? 1 : 0}
-        paddingBottom={padded() ? 1 : 0}
+      <scrollbox
+        ref={(element) => {
+          list = element
+        }}
+        width={props.geometry.width}
+        height={props.geometry.viewport}
+        maxHeight={props.geometry.viewport}
+        scrollbarOptions={{ visible: false }}
+        contentOptions={{ minHeight: 0 }}
         backgroundColor={props.theme.surface("dialog").background.raised.high}
       >
-        <QuickRows
-          theme={props.theme}
-          chosen={props.chosen}
-          onChoose={props.onChoose}
-          onAsk={props.onAsk}
-        />
-      </box>
+        <box
+          flexDirection="column"
+          paddingLeft={2}
+          paddingRight={2}
+          paddingTop={props.geometry.dress === "padded" ? 1 : 0}
+          paddingBottom={props.geometry.dress === "padded" ? 1 : 0}
+        >
+          <QuickRows
+            theme={props.theme}
+            chosen={props.chosen}
+            onChoose={props.onChoose}
+            onAsk={props.onAsk}
+          />
+        </box>
+      </scrollbox>
     </box>
   )
 }
@@ -480,6 +554,7 @@ export function ThreadDialog(props: {
   readonly sessionMoved: () => boolean
   readonly remember: (draft: string, place: Reading | undefined) => void
   readonly ask: (question: string) => void
+  readonly retry: () => void
   readonly clear: () => void
   readonly close: () => void
   readonly copy: () => void
@@ -542,18 +617,22 @@ export function ThreadDialog(props: {
       return () => clearInterval(id)
     },
   }
+  const playableTurns = createMemo(() => props.state().turns.map((item) => item.turn))
   const playback = createAnswerPlayback(
     props.sessionID,
-    () => props.state().turns.map((item) => item.turn),
+    () => playableTurns(),
     timer,
   )
   const answerText = (index: number) => {
+    const turns = playableTurns()
+    const answer = turns[index]?.answer ?? ""
+    if (index !== turns.length - 1) return answer.trimEnd()
     revealed()
     return playback.text(index)
   }
   const frame = useSpinnerFrame(() => Boolean(props.state().active))
   const [width, setWidth] = createSignal(0)
-  const [height, setHeight] = createSignal(0)
+  const [composerRows, setComposerRows] = createSignal(1)
   const [listed, setListed] = createSignal(false)
   const [chosen, setChosen] = createSignal(0)
   const [browse, setBrowse] = createSignal<Browse>(NOT_BROWSING)
@@ -604,7 +683,10 @@ export function ThreadDialog(props: {
     sync()
   }
 
-  const noteTyped = () => setTyped((field?.plainText.length ?? 0) > 0)
+  const noteTyped = () => {
+    setTyped((field?.plainText.length ?? 0) > 0)
+    setComposerRows(field?.height ?? 1)
+  }
 
   onMount(() => {
     context.renderer.on("frame", hold)
@@ -619,13 +701,6 @@ export function ThreadDialog(props: {
     context.renderer.off("frame", hold)
     context.renderer.off("frame", noteTyped)
     playback.stop()
-  })
-
-  createEffect(() => {
-    props.state()
-    props.rows()
-    revealed()
-    queueMicrotask(() => setHeight(panel?.height ?? 0))
   })
 
   createEffect(() => {
@@ -697,7 +772,8 @@ export function ThreadDialog(props: {
     waiting: props.state().active !== undefined,
     typed: typed(),
     listed: listed(),
-    canClear: props.state().turns.length > 0,
+    hasTurns: props.state().turns.length > 0,
+    canRetry: props.state().paused && props.state().failure?.question !== undefined,
     canJump: readingView().above > 0 || readingView().below > 0,
   })
 
@@ -705,6 +781,15 @@ export function ThreadDialog(props: {
     event?.preventDefault()
     const effect = binding.effect()
     if (effect) applyList(effect)
+  }
+
+  const retryFailed = () => {
+    if (selecting() || !props.state().failure?.question || !retryQuestion(mode())) return
+    clearing.disarm()
+    setBrowse(NOT_BROWSING)
+    setListed(false)
+    scrollToEnd()
+    props.retry()
   }
 
   const runs: Record<Intent, (binding: Binding, input: unknown, event?: KeyEvent) => false | void> = {
@@ -719,6 +804,14 @@ export function ThreadDialog(props: {
       event?.preventDefault()
       if (event?.eventType === "repeat" || event?.repeated) return
       clearing.press()
+    },
+    retry: (_binding, _input, event) => {
+      event?.preventDefault()
+      retryFailed()
+    },
+    copy_thread: (_binding, _input, event) => {
+      event?.preventDefault()
+      copyThread()
     },
     recall_older: (_binding, _input, event) => {
       event?.preventDefault()
@@ -760,6 +853,7 @@ export function ThreadDialog(props: {
 
   const askQuick = (question: string) => {
     if (selecting()) return
+    clearing.disarm()
     setListed(false)
     scrollToEnd()
     props.ask(question)
@@ -768,6 +862,10 @@ export function ThreadDialog(props: {
   const selecting = () => {
     const selection = context.renderer.getSelection()
     return selection !== null && (selection.isDragging || selection.getSelectedText() !== "")
+  }
+
+  const copyThread = () => {
+    if (!selecting()) props.copy()
   }
 
   const turnCount = () => props.state().turns.length
@@ -779,32 +877,34 @@ export function ThreadDialog(props: {
   const hintTier = () => footerHints(mode(), width(), copyText(), rightText())
   const header = () =>
     headerRow(width(), countText(), readingView().above, QUICK_PROMPTS.length, listed())
-  const listRoom = () => Math.max(0, height() - 2)
-  const cardRows = () => quickCardRows(QUICK_PROMPTS.length)
+  const listRoom = () => listTranscriptRoom(props.rows(), composerRows())
+  const card = createMemo(() => quickCardGeometry(QUICK_PROMPTS, width(), listRoom()))
   const heights = () =>
     panelHeights({
       rows: props.rows(),
       listed: listed(),
-      composerRows: field?.height ?? 1,
-      needed: cardRows(),
+      composerRows: composerRows(),
+      needed: card().rows,
     })
 
   const activeQuestion = () => props.state().active ?? ""
   const model = () => modelName(context.data, props.sessionID)
   const thinkingText = () => (model() ? `${model()} is thinking...` : "thinking...")
   const placeholder = () =>
-    props.state().active ? "ask to queue the next" : "ask a side question"
+    props.state().active
+      ? "ask to queue the next"
+      : props.state().paused
+        ? "ask to resume the queue"
+        : "ask a side question"
 
   return (
     <box
       ref={(element) => {
         panel = element
         setWidth(element.width)
-        setHeight(element.height)
       }}
       onSizeChange={() => {
         setWidth(panel?.width ?? 0)
-        setHeight(panel?.height ?? 0)
       }}
       flexDirection="column"
       gap={1}
@@ -825,8 +925,7 @@ export function ThreadDialog(props: {
       <Show when={listed()}>
         <QuickList
           theme={theme}
-          width={width()}
-          room={listRoom()}
+          geometry={card()}
           chosen={chosen()}
           onChoose={(index) => setChosen(index)}
           onAsk={askQuick}
@@ -857,6 +956,7 @@ export function ThreadDialog(props: {
                 }}
                 copy={props.copyBlock}
                 selecting={selecting}
+                copyable={() => index() !== turnCount() - 1 || !playback.revealing()}
                 theme={theme}
                 syntax={props.syntax}
               />
@@ -912,6 +1012,15 @@ export function ThreadDialog(props: {
                     {`Asked: ${failure().question}`}
                   </text>
                 </Show>
+                <Show when={retryQuestion(mode()) && failure().question}>
+                  <Clickable
+                    base={accent}
+                    muted={error}
+                    label="retry question"
+                    onClick={retryFailed}
+                    wrap={false}
+                  />
+                </Show>
               </box>
             )}
           </Show>
@@ -923,6 +1032,7 @@ export function ThreadDialog(props: {
         placeholder={placeholder}
         onReady={(element) => {
           field = element
+          setComposerRows(element.height)
         }}
         onTyped={() => {
           if ((field?.plainText.length ?? 0) === 0) return
@@ -943,7 +1053,7 @@ export function ThreadDialog(props: {
         armed={clearing.armed()}
         confirm={confirmText}
         copy={copyText}
-        onCopy={props.copy}
+        onCopy={copyThread}
         hints={hintTier}
         right={rightText}
         highlight={() => readingView().newAnswers > 0}

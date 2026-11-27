@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { RAIL } from "../src/rail.ts"
 import {
+  answerToken,
   copiedLabel,
   pointerAt,
   samePointer,
@@ -44,8 +45,13 @@ const surface = (
 
 const none = () => false
 
-const at = (s: PointerSurface, x: number, y: number, selecting = none): AnswerPointer =>
-  pointerAt({ x, y }, s, selecting)
+const at = (
+  s: PointerSurface,
+  x: number,
+  y: number,
+  selecting = none,
+  copyable: () => boolean = () => true,
+): AnswerPointer => pointerAt({ x, y }, s, selecting, copyable)
 
 describe("the text a click copies", () => {
   const copied = (token: AnswerToken) => at(surface([block(token, 0, 1)]), 2, 0).copy
@@ -142,6 +148,22 @@ describe("a paragraph that grew in place", () => {
   })
 })
 
+describe("copy eligibility", () => {
+  const s = surface([block(paragraph(text("a completed command")), 0, 1)])
+
+  test("a partial answer keeps its rail but copies nothing", () => {
+    expect(at(s, 2, 0, none, () => false)).toEqual({
+      place: { top: 0, height: 1 },
+      rail: RAIL,
+      copy: "",
+    })
+  })
+
+  test("a completed answer copies its whole block", () => {
+    expect(at(s, 2, 0, none, () => true).copy).toBe("a completed command")
+  })
+})
+
 describe("the selection guard", () => {
   test("a drag that selects text leaves the rail and the copy off", () => {
     const s = surface([block(paragraph(text("a command")), 0, 1)])
@@ -185,6 +207,67 @@ describe("the rail under the pointer", () => {
       markdown: { _blockStates: [block(paragraph(text("x")), 8, 2)] },
     }
     expect(at(plain, 2, 8).place).toEqual({ top: 0, height: 2 })
+  })
+})
+
+describe("the current host's markdown blocks", () => {
+  type Block = {
+    kind: string
+    raw: string
+    text: string
+    children: Block[]
+    ordered?: boolean
+    start?: number
+  }
+
+  const block = (kind: string, text: string, children: Block[] = []): Block => ({
+    kind,
+    raw: text,
+    text,
+    children,
+  })
+
+  test("copies the display text of a paragraph", () => {
+    expect(answerToken(block("paragraph", "A bold paragraph."))).toMatchObject({
+      type: "paragraph",
+      text: "A bold paragraph.",
+    })
+  })
+
+  test("keeps list markers and nesting", () => {
+    const token = answerToken(
+      block("list", "- one\n- two\n  1. three", [
+        block("item", "- one", [block("paragraph", "one")]),
+        block("item", "- two\n  1. three", [
+          block("paragraph", "two"),
+          {
+            ...block("list", "1. three", [
+              block("item", "1. three", [block("paragraph", "three")]),
+            ]),
+            ordered: true,
+            start: 1,
+          },
+        ]),
+      ]),
+    )
+    expect(token).toMatchObject({ type: "list", ordered: false })
+    expect(token.items?.[1]?.tokens?.[1]).toMatchObject({ type: "list", ordered: true, start: 1 })
+  })
+
+  test("copies table rows from their cells", () => {
+    const token = answerToken(
+      block("table", "| a | b |", [
+        block("row", "| a | b |", [block("cell", "a"), block("cell", "b")]),
+        block("row", "| 1 | 2 |", [block("cell", "1"), block("cell", "2")]),
+      ]),
+    )
+    expect(token).toMatchObject({ type: "table" })
+    expect(token.header).toHaveLength(2)
+    expect(token.rows).toHaveLength(1)
+  })
+
+  test("a rule is still not copy text", () => {
+    expect(answerToken(block("rule", "---")).type).toBe("hr")
   })
 })
 

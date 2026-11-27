@@ -116,6 +116,7 @@ const STATE = {
   asked: [],
   pending: ["what is cheapest to try first?"],
   active: undefined,
+  paused: false,
   failure: undefined,
   draft: "",
   place: undefined,
@@ -154,6 +155,7 @@ const setup = await testRender(
           markPlayed={() => {}}
           remember={() => {}}
           ask={() => {}}
+          retry={() => {}}
           clear={() => {}}
           close={() => {}}
           copy={() => {}}

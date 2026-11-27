@@ -1,14 +1,17 @@
 export const SESSION_OPEN_BIND = "ctrl+up"
 
+export const THREAD_COPY_BIND = "ctrl+shift+c"
+
 export type Hint = readonly [key: string, rest: string]
 
-export type HintId = "list" | "jump" | "clear" | "queues"
+export type HintId = "list" | "jump" | "clear" | "retry" | "copy" | "queues"
 
 export type InteractionMode = {
   readonly waiting: boolean
   readonly typed: boolean
   readonly listed: boolean
-  readonly canClear: boolean
+  readonly hasTurns: boolean
+  readonly canRetry: boolean
   readonly canJump: boolean
 }
 
@@ -18,6 +21,8 @@ export const footerMode = (mode: InteractionMode): FooterMode => {
   if (mode.waiting) return mode.typed ? "waiting-typed" : "waiting"
   return mode.typed ? "idle-typed" : "idle"
 }
+
+export const retryQuestion = (mode: InteractionMode): boolean => mode.canRetry && !mode.typed
 
 export type ListEffect = "open" | "close" | "close-window"
 
@@ -38,6 +43,8 @@ export type Intent =
   | "list"
   | "step_down"
   | "clear"
+  | "retry"
+  | "copy_thread"
   | "recall_older"
   | "recall_newer"
   | "choose_up"
@@ -53,6 +60,7 @@ export type Binding = {
   readonly intent: Intent
   readonly enabled: () => boolean
   readonly effect: () => ListEffect | undefined
+  readonly palette?: true
 }
 
 type Key = {
@@ -63,6 +71,7 @@ type Key = {
   readonly enabled: (mode: InteractionMode) => boolean
   readonly effect?: (listed: boolean) => ListEffect
   readonly command?: boolean
+  readonly palette?: true
 }
 
 type HintDef = {
@@ -148,10 +157,43 @@ const GROUPS: readonly Group[] = [
         bind: "delete",
         title: "Clear the side thread",
         intent: "clear",
-        enabled: (mode) => !mode.listed && !mode.typed,
+        enabled: (mode) => !mode.waiting && !mode.listed && !mode.typed,
       },
     ],
-    hint: { id: "clear", rest: " clear thread", live: (mode) => mode.canClear },
+    hint: {
+      id: "clear",
+      rest: " clear thread",
+      live: (mode) => mode.hasTurns && !mode.waiting && !mode.listed && !mode.typed,
+    },
+  },
+  {
+    keys: [
+      {
+        id: "session.aside.retry",
+        bind: "enter",
+        title: "Retry the failed question",
+        intent: "retry",
+        enabled: (mode) => retryQuestion(mode) && !mode.waiting && !mode.listed,
+      },
+    ],
+    hint: {
+      id: "retry",
+      rest: " retry",
+      live: (mode) => retryQuestion(mode) && !mode.waiting && !mode.listed,
+    },
+  },
+  {
+    keys: [
+      {
+        id: "session.aside.copy",
+        bind: THREAD_COPY_BIND,
+        title: "Copy the whole side thread",
+        intent: "copy_thread",
+        enabled: (mode) => mode.hasTurns,
+        palette: true,
+      },
+    ],
+    hint: { id: "copy", rest: " copy thread", live: (mode) => mode.hasTurns },
   },
   {
     keys: [
@@ -249,14 +291,22 @@ export const bindings = (mode: () => InteractionMode): readonly Binding[] =>
         intent: key.intent,
         enabled: () => key.enabled(mode()),
         effect: () => key.effect?.(mode().listed),
+        ...(key.palette === true ? { palette: true as const } : {}),
       })),
   )
 
 const TIERS: Record<FooterMode, readonly (readonly HintId[])[]> = {
-  idle: [["list", "jump", "clear"], ["list", "jump"], ["list"], ["jump"]],
-  "idle-typed": [["jump"]],
-  waiting: [["list", "jump"], ["list"], ["jump"]],
-  "waiting-typed": [["queues", "jump"], ["queues"]],
+  idle: [
+    ["retry", "list", "jump", "clear", "copy"],
+    ["retry", "list", "jump", "clear"],
+    ["retry", "list", "jump"],
+    ["retry", "list"],
+    ["retry", "jump"],
+    ["jump"],
+  ],
+  "idle-typed": [["jump", "copy"], ["jump"]],
+  waiting: [["list", "jump", "copy"], ["list", "jump"], ["list"], ["jump"]],
+  "waiting-typed": [["queues", "jump", "copy"], ["queues", "jump"], ["queues"]],
 }
 
 const SEPARATOR = " · "

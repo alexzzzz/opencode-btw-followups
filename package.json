@@ -45,18 +45,21 @@
     "typecheck": "tsc --noEmit",
     "test": "bun test",
     "check": "bun run typecheck && bun test && bun run build",
+    "release:smoke": "bun run check && node scripts/release-smoke.mjs",
     "screenshots": "bun scripts/screenshot.mjs",
     "deploy": "node scripts/deploy.mjs",
     "deploy:check": "node scripts/deploy.mjs --check",
-    "prepublishOnly": "bun run check"
+    "config:path": "node scripts/config-dir.mjs",
+    "prepack": "bun run build",
+    "prepublishOnly": "bun run release:smoke"
   },
   "dependencies": {
     "@opencode/plugin": "^2.0.19"
   },
   "peerDependencies": {
-    "@opentui/core": "0.6.6",
-    "@opentui/solid": "0.6.6",
-    "solid-js": ">=1.9.0"
+    "@opentui/core": ">=0.5.12 <0.10.0",
+    "@opentui/solid": ">=0.5.12 <0.10.0",
+    "solid-js": ">=1.9.12 <2.0.0"
   },
   "peerDependenciesMeta": {
     "@opentui/core": {
@@ -70,9 +73,12 @@
     }
   },
   "devDependencies": {
+    "@opentui/core": "0.9.9",
+    "@opentui/solid": "0.9.9",
     "@types/bun": "latest",
     "esbuild": "0.25.0",
     "esbuild-plugin-solid": "0.6.0",
+    "solid-js": "1.9.20",
     "typescript": "^5.7.0"
   }
 }

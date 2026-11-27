@@ -12,10 +12,12 @@ An OpenCode plugin that gives side questions a thread of their own.
   - [Keyboard shortcuts](#keyboard-shortcuts)
 - [Working in the window](#working-in-the-window)
 - [Things to keep in mind](#things-to-keep-in-mind)
+- [Compatibility](#compatibility)
 - [Agent instructions](#agent-instructions)
   - [Install](#install)
   - [Update](#update)
   - [Remove](#remove)
+- [Release checks](#release-checks)
 - [License](#license)
 
 ## What does it do?
@@ -46,6 +48,7 @@ From a session, you can use these shortcuts:
 2. Press `Ctrl+Up` again to open the quick prompts. Use `Up` and `Down` to choose one, then press `Enter`, or click a question.
 3. Press `Ctrl+Down` to close the quick prompts.
 4. Press `Ctrl+Down` again to close the window.
+5. Press `Ctrl+Shift+C` to copy the whole side thread. The command palette also has "Copy the whole side thread".
 
 The same shortcuts work in subagent sessions, so you can ask your subagents side questions, too.
 
@@ -55,11 +58,15 @@ The same shortcuts work in subagent sessions, so you can ask your subagents side
 
 Ask follow-up questions as you would in a normal chat. Each new question includes the earlier questions and answers, so the model has the context it needs.
 
-Use `PageUp`, `PageDown`, or the mouse wheel to read a long thread. Click one part of an answer to copy that section. To copy the whole thread, use `copy thread`. To clear the thread, press `Delete` twice while the input field is empty.
+Use `PageUp`, `PageDown`, or the mouse wheel to read a long thread. Click a completed part of an answer to copy that section. A click during the answer's reveal copies nothing. To copy the whole thread, press `Ctrl+Shift+C`, choose "Copy the whole side thread" from the command palette, or use `copy thread`. Releasing a text selection over `copy thread` keeps the selection instead of replacing it. To clear the thread, press `Delete` twice while the input field is empty and no answer is active. With text in the field, `Delete` stays a forward delete. It also leaves the thread alone while the quick prompts are open.
+
+The quick prompt list wraps on a narrow terminal. On a short terminal, it uses the rows above the composer and scrolls to keep the chosen prompt visible.
 
 ![The btw badge in the status bar](docs/btw-badge.png)
 
-If you close the window while an answer is being prepared, a `btw` badge appears below the input field. Click it to open the window for that session. You can close the window at any time and come back to it later.
+If you close the window while an answer is being prepared, a `btw` badge appears below the input field. Click it to open the window for that session. The badge also appears when questions are waiting or a request has failed. You can close the window at any time and come back to it later.
+
+If an answer is empty or a request throws an error, the queue pauses. The failed question and every question behind it stay visible, and opening the window again keeps the error. Press `Enter` with an empty input field or click `retry question` to retry. Asking a new question also acknowledges the error and resumes the saved queue in order.
 
 ## Things to keep in mind
 
@@ -68,6 +75,12 @@ If you close the window while an answer is being prepared, a `btw` badge appears
 - **Storage:** Threads are kept in memory only. They are lost when OpenCode stops or when you delete the session.
 - **Terminal:** The window needs a terminal that is at least 15 rows tall.
 
+## Compatibility
+
+The minimum tested host is OpenCode 2.0.19 with `@opencode/plugin` 2.0.19, OpenTUI 0.5.12, and Solid 1.9.12. The current tested host is OpenCode 2.4.2 with `@opencode/plugin` 2.4.2, OpenTUI 0.9.9, and Solid 1.9.20.
+
+The package supports OpenCode 2.x hosts that provide OpenTUI `>=0.5.12 <0.10.0` and Solid `>=1.9.12 <2.0.0`. The release smoke installs both tested host sets on Windows and Linux. Versions between the minimum and current tested versions are not each tested separately.
+
 ## Agent instructions
 
 ### Install
@@ -75,15 +88,16 @@ If you close the window while an answer is being prepared, a `btw` badge appears
 ```text
 Goal: install @alexzzzz/opencode-btw-followups and make `/btw` use it instead of the built-in command.
 
-1. Run `opencode plugin add @alexzzzz/opencode-btw-followups`.
-2. Open `cli.json` in the global OpenCode config (`~/.config/opencode`; Windows: `%USERPROFILE%\.config\opencode`) and add `-opencode.btw` to `plugins`. Keep every other entry. This turns off the built-in `/btw`; without it both answer the same command.
-3. Run `opencode plugin list` and check that `btw-followups` is listed.
-4. Run `opencode reload`.
-5. Ask the user to run `/btw` and check that the plugin window opens.
+1. Run `opencode debug paths config`. Use the printed directory as `<config>`.
+2. Run `opencode plugin add @alexzzzz/opencode-btw-followups`.
+3. Open `<config>/cli.json` and add `-opencode.btw` to `plugins`. Keep every other entry. This turns off the built-in `/btw`; without it both answer the same command.
+4. Run `opencode plugin list` and check that `btw-followups` is listed.
+5. Run `opencode reload`.
+6. Ask the user to run `/btw` and check that the plugin window opens.
 
 Done when `/btw` opens the plugin window.
 
-If `cli.json` is missing, create it with `{"$schema":"https://opencode.ai/v2/cli.json","plugins":["*","-opencode.btw"]}`. If a command fails, report it instead of guessing.
+The path command reports the directory OpenCode uses, including `XDG_CONFIG_HOME` and `OPENCODE_CONFIG_DIR` when they are set. If `cli.json` is missing, create it with `{"$schema":"https://opencode.ai/v2/cli.json","plugins":["*","-opencode.btw"]}`. If a command fails, report it instead of guessing.
 ```
 
 ### Update
@@ -98,15 +112,31 @@ Run `opencode plugin update @alexzzzz/opencode-btw-followups`.
 Goal: remove @alexzzzz/opencode-btw-followups and restore the built-in `/btw`.
 
 1. Run `opencode plugin remove @alexzzzz/opencode-btw-followups`.
-2. Open `cli.json` in the global OpenCode config (`~/.config/opencode`; Windows: `%USERPROFILE%\.config\opencode`) and remove `-opencode.btw` from `plugins`. Keep every other entry. This lets the built-in `/btw` load again.
-3. Run `opencode plugin list` and check that `btw-followups` is gone.
-4. Run `opencode reload`.
-5. Ask the user to run `/btw` and check that the built-in command opens.
+2. Run `opencode debug paths config`. Use the printed directory as `<config>`.
+3. Open `<config>/cli.json` and remove `-opencode.btw` from `plugins`. Keep every other entry. This lets the built-in `/btw` load again.
+4. Run `opencode plugin list` and check that `btw-followups` is gone.
+5. Run `opencode reload`.
+6. Ask the user to run `/btw` and check that the built-in command opens.
 
 Done when `/btw` opens the built-in command.
 
 If `cli.json` is missing, the built-in `/btw` is already on. If `btw-followups` still appears with a local path, report it and do not delete files. If a command fails, report it instead of guessing.
 ```
+
+## Release checks
+
+Run the release smoke from a clean checkout before publishing:
+
+```sh
+bun install --frozen-lockfile
+bun run release:smoke
+```
+
+The command runs the typecheck, tests, and build first. It then copies the Git source files to a temporary directory without `dist/`, installs the locked development dependencies, and runs `npm pack`. The `prepack` script builds both public entry points before npm reads the package contents.
+
+The smoke installs the tarball into an empty project for each tested host set. It imports the server and terminal entry points in a plain Bun process, then runs the real OpenCode path command and checks `deploy` and `deploy:check` against temporary config directories. Any failed pack, install, import, or deploy check stops the command. GitHub Actions runs the same smoke on Windows and Linux.
+
+`npm publish` runs the release smoke through `prepublishOnly`, so a failed check stops publication.
 
 ## License
 

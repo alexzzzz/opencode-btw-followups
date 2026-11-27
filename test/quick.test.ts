@@ -2,11 +2,12 @@ import { describe, expect, test } from "bun:test"
 import {
   QUICK_PROMPTS,
   nextChoice,
-  quickCardDress,
-  quickCardRows,
+  quickCardGeometry,
   quickCardWidth,
+  quickChoiceScroll,
   quickMarker,
 } from "../src/quick.ts"
+import { listTranscriptRoom } from "../src/layout.ts"
 
 const PANEL_WIDTH = 88
 
@@ -35,28 +36,86 @@ describe("quickCardWidth", () => {
   })
 })
 
-describe("quickCardRows", () => {
-  test("the card is its prompts and the air above and below them", () => {
-    expect(quickCardRows(6)).toBe(8)
+describe("quickCardGeometry", () => {
+  test("a wide panel keeps one row per prompt and the air above and below", () => {
+    const card = quickCardGeometry(QUICK_PROMPTS, PANEL_WIDTH, 60)
+    expect(card.width).toBe(42)
+    expect(card.dress).toBe("padded")
+    expect(card.rows).toBe(8)
+    expect(card.viewport).toBe(8)
+    expect(card.places.map((place) => place.height)).toEqual([1, 1, 1, 1, 1, 1])
+    expect(card.places[0]?.top).toBe(1)
+  })
+
+  test("a narrow panel wraps prompts and counts every wrapped row", () => {
+    const card = quickCardGeometry(QUICK_PROMPTS, 30, 60)
+    expect(card.width).toBe(28)
+    expect(card.dress).toBe("padded")
+    expect(card.rows).toBe(11)
+    expect(card.places.map((place) => place.height)).toEqual([1, 1, 2, 2, 1, 2])
+  })
+
+  test("a phone-width panel gives long questions several rows", () => {
+    const card = quickCardGeometry(QUICK_PROMPTS, 20, 60)
+    expect(card.width).toBe(18)
+    expect(card.rows).toBe(19)
+    expect(card.places.map((place) => place.height)).toEqual([2, 2, 3, 4, 2, 4])
+  })
+
+  test("a short transcript drops the air before it starts hiding prompts", () => {
+    const card = quickCardGeometry(QUICK_PROMPTS, 30, 10)
+    expect(card.dress).toBe("plain")
+    expect(card.rows).toBe(9)
+    expect(card.places[0]?.top).toBe(0)
+  })
+
+  test("a seventeen-row terminal with a six-row composer limits the list to three rows", () => {
+    const room = listTranscriptRoom(17, 6)
+    const card = quickCardGeometry(QUICK_PROMPTS, 30, room)
+    expect(room).toBe(3)
+    expect(card.rows).toBe(9)
+    expect(card.viewport).toBe(3)
+  })
+
+  test("the viewport never grows past the transcript room", () => {
+    for (let width = 12; width <= 88; width += 1) {
+      for (let room = 0; room <= 30; room += 1) {
+        const card = quickCardGeometry(QUICK_PROMPTS, width, room)
+        expect(card.width).toBeLessThanOrEqual(Math.max(0, width - 2))
+        expect(card.viewport).toBeLessThanOrEqual(room)
+        expect(card.viewport).toBeLessThanOrEqual(card.rows)
+      }
+    }
   })
 })
 
-describe("quickCardDress", () => {
-  test("a window with room for the air gets the padded card", () => {
-    expect(quickCardDress(6, 60)).toBe("padded")
-    expect(quickCardDress(6, 8)).toBe("padded")
+describe("quickChoiceScroll", () => {
+  const card = quickCardGeometry(QUICK_PROMPTS, 20, 8)
+
+  test("a pick below the viewport scrolls until the whole row is visible", () => {
+    const scroll = quickChoiceScroll(card, 5, 0)
+    const picked = card.places[5]
+    expect(scroll).toBe(9)
+    expect(picked).toBeDefined()
+    expect(picked!.top).toBeGreaterThanOrEqual(scroll)
+    expect(picked!.top + picked!.height).toBeLessThanOrEqual(scroll + card.viewport)
   })
 
-  test("a window too short for the air drops to the rows alone", () => {
-    expect(quickCardDress(6, 7)).toBe("plain")
-    expect(quickCardDress(6, 4)).toBe("plain")
+  test("a pick above the viewport scrolls back to its first row", () => {
+    expect(quickChoiceScroll(card, 0, 9)).toBe(0)
   })
 
-  test("every dress fits the room it was chosen for that can hold a row", () => {
-    const height = (dress: string) => (dress === "padded" ? 8 : 6)
-    for (const room of [6, 7, 8, 9, 10, 12, 20]) {
-      expect(height(quickCardDress(6, room))).toBeLessThanOrEqual(room)
-    }
+  test("a visible pick leaves the reading position alone", () => {
+    expect(quickChoiceScroll(card, 2, 0)).toBe(0)
+  })
+
+  test("a row taller than the viewport keeps its first row visible", () => {
+    const short = quickCardGeometry(QUICK_PROMPTS, 20, 2)
+    const scroll = quickChoiceScroll(short, 3, 0)
+    const picked = short.places[3]!
+    expect(picked.height).toBeGreaterThan(short.viewport)
+    expect(picked.top).toBeGreaterThanOrEqual(scroll)
+    expect(picked.top).toBeLessThan(scroll + short.viewport)
   })
 })
 
