@@ -782,11 +782,16 @@ wait, so nothing is sent that the protocol schema does not declare.
 
 The header reads `unsupported` whenever the selected model has no known control, whatever the
 setting is, so a reader sees before asking that the answer will still think. A supported model
-reads `on` when the setting is on and `off` when the catalogue or the table can turn reasoning
+reads `as is` when the setting is on and `off` when the catalogue or the table can turn reasoning
 fully off. A reduced model reads `reasoning low`, `reasoning minimal` or `reasoning medium` from
 the level the request carries: the header names the real value because a label that says `off`
 while the answer still thinks has told the reader something false. The unsupported state reads
 `reasoning n/a`, which says that the request goes out unchanged.
+
+The wording `as is` rather than `default` or `auto` is deliberate. The side request uses the
+session's model ref, variant included, so a session set to `high` sends `high` while the setting
+is on. `as is` says the plugin adds nothing; `default` would name a level the request may not use,
+and `auto` would name a decision the model may not be making.
 
 The cell and the palette action run the same toggle, and on an unsupported model that toggle
 reports why instead of changing the setting. A setting changed where it cannot take effect has no
@@ -798,7 +803,7 @@ The header fits the reasoning cell the way it fits every other cell, and the cel
 early. With a count of `1 answered` and three rows above, the cells give way in this order: the
 count, the wording of the state, the state itself, the notice of what is above, the marker's
 full wording, the escape hint, the marker's number, and the title alone. The wording shortens
-from `reasoning on` to `reason on` to `on`, from `reasoning low` to `reason low` to `low`, and
+from `reasoning as is` to `reason as is` to `as is`, from `reasoning low` to `reason low` to `low`, and
 from `reasoning n/a` to `reason n/a` and then `n/a`.
 The count goes first because the transcript already shows how much has been answered. The state
 gives way before the escape hint and the quick marker because the window is where both of those

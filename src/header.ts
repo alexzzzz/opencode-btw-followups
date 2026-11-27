@@ -20,7 +20,7 @@ export type HeaderRow = {
 }
 
 const REASONING_LABELS = {
-  on: { full: "reasoning on", short: "reason on", least: "on" },
+  on: { full: "reasoning as is", short: "reason as is", least: "as is" },
   off: { full: "reasoning off", short: "reason off", least: "off" },
   unsupported: { full: "reasoning n/a", short: "reason n/a", least: "n/a" },
 } as const

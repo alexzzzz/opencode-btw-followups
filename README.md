@@ -71,7 +71,7 @@ If an answer is empty or a request throws an error, the queue pauses. The failed
 
 ### Reasoning in side answers
 
-The header shows how much side answers reason. It reads `reasoning on` at first, and clicking it asks for the least reasoning the model offers. When the model can turn reasoning off, the label reads `reasoning off`. When it cannot, but has a cheaper level such as `low` or `minimal`, the label names that level instead. The command palette has the same action as "Toggle reasoning in side answers". There is no keyboard shortcut for it.
+The header shows how much side answers reason. It reads `reasoning as is` at first, and clicking it asks for the least reasoning the model offers. When the model can turn reasoning off, the label reads `reasoning off`. When it cannot, but has a cheaper level such as `low` or `minimal`, the label names that level instead. The command palette has the same action as "Toggle reasoning in side answers". There is no keyboard shortcut for it.
 
 The setting applies to the next question you ask, including one already waiting in the queue. A request that has already gone out keeps the setting it was sent with. It belongs to the plugin rather than to a session, so every window shows the same value, and it survives closing the window and restarting OpenCode.
 

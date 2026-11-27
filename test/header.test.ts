@@ -33,7 +33,7 @@ describe("headerRow", () => {
   })
 
   test("the reasoning state reads in words on a wide panel", () => {
-    expect(headerRow(88, "1 answered", 3, 6, false, "on").reasoning).toBe("reasoning on")
+    expect(headerRow(88, "1 answered", 3, 6, false, "on").reasoning).toBe("reasoning as is")
     expect(headerRow(88, "1 answered", 3, 6, false, "off").reasoning).toBe("reasoning off")
     expect(headerRow(88, "1 answered", 3, 6, false, { level: "low" }).reasoning).toBe("reasoning low")
     expect(headerRow(88, "1 answered", 3, 6, false, "unsupported").reasoning).toBe("reasoning n/a")
@@ -55,7 +55,7 @@ describe("headerRow", () => {
   })
 
   test("an even narrower panel keeps the shortest reasoning label", () => {
-    expect(headerRow(60, "1 answered", 3, 6, false, "on").reasoning).toBe("on")
+    expect(headerRow(63, "1 answered", 3, 6, false, "on").reasoning).toBe("as is")
     expect(headerRow(61, "1 answered", 3, 6, false, "unsupported").reasoning).toBe("n/a")
   })
 

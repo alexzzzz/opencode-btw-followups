@@ -132,7 +132,7 @@ export default {
           setReasoningOn(stored)
           tell(
             stored
-              ? "Reasoning in side answers is on."
+              ? "Side answers keep the session's reasoning."
               : decision.state === "reduced"
                 ? `Reasoning in side answers is ${decision.level}.`
                 : "Reasoning in side answers is off.",
