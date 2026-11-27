@@ -40,6 +40,7 @@ export type ThreadAdapters = {
   readonly windowSession: () => string | undefined
   readonly notify: (notice: Notice) => void
   readonly raise: (sessionID: string) => void
+  readonly releasePlayback: (sessionID: string) => void
   readonly publish: (sides: Sides) => void
 }
 
@@ -118,6 +119,7 @@ export const createSessionThread = (adapters: ThreadAdapters): SessionThread => 
   const forget = (sessionID: string) => {
     inFlight.get(sessionID)?.abort()
     inFlight.delete(sessionID)
+    adapters.releasePlayback(sessionID)
     commit(forgetState(sides, sessionID))
   }
 

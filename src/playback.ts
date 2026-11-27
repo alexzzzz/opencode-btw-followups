@@ -21,13 +21,11 @@ const step = (length: number) => Math.max(1, Math.ceil(length / TICKS_PER_REVEAL
 
 const firstChunk = (length: number) => Math.min(step(length), length)
 
-const nextChunk = (shown: number, length: number) => Math.min(shown + step(length), length)
-
-const firstShown = (alreadyRevealed: boolean, length: number) =>
-  alreadyRevealed ? length : firstChunk(length)
-
-const shownText = (answer: string, shown: number) =>
-  shown >= answer.length ? answer.trimEnd() : answer.slice(0, shown).trimEnd()
+const unitsOf = (answer: string): readonly string[] => {
+  if (typeof Intl.Segmenter !== "function") return Array.from(answer)
+  const segmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" })
+  return Array.from(segmenter.segment(answer), (part) => part.segment)
+}
 
 const playedBySession = new Map<string, WeakSet<PlayableTurn>>()
 
@@ -40,12 +38,19 @@ const memoryFor = (sessionID: string) => {
   return memory
 }
 
+export const releasePlayback = (sessionID: string) => {
+  playedBySession.delete(sessionID)
+}
+
 export const createAnswerPlayback = (
   sessionID: string,
   turns: () => readonly PlayableTurn[],
   timer: Timer,
 ): AnswerPlayback => {
   const played = memoryFor(sessionID)
+  let units: readonly string[] = []
+  let raw = ""
+  let visible = ""
   let shown = 0
   let playing: PlayableTurn | undefined
   let cancel: (() => void) | undefined
@@ -55,38 +60,49 @@ export const createAnswerPlayback = (
     cancel = undefined
   }
 
-  const ensure = () => {
-    const last = turns().at(-1)
+  const ensure = (items: readonly PlayableTurn[]) => {
+    const last = items.at(-1)
     if (last === undefined) {
       stop()
       playing = undefined
+      units = []
+      raw = ""
+      visible = ""
+      shown = 0
       return
     }
     if (playing === last) return
     stop()
     playing = last
     const answer = last.answer
-    shown = firstShown(played.has(last), answer.length)
-    if (shown >= answer.length) return
+    units = unitsOf(answer)
+    shown = firstChunk(units.length)
+    if (played.has(last)) shown = units.length
+    raw = units.slice(0, shown).join("")
+    visible = raw.trimEnd()
+    if (shown >= units.length) return
     played.add(last)
     cancel = timer.every(REVEAL_MS, () => {
-      shown = nextChunk(shown, answer.length)
-      if (shown >= answer.length) stop()
+      const next = Math.min(shown + step(units.length), units.length)
+      raw += units.slice(shown, next).join("")
+      shown = next
+      visible = raw.trimEnd()
+      if (shown >= units.length) stop()
     })
   }
 
   return {
     text(index) {
-      ensure()
-      const answer = turns()[index]?.answer ?? ""
-      return index === turns().length - 1 && shown < answer.length
-        ? shownText(answer, shown)
-        : answer.trimEnd()
+      const items = turns()
+      ensure(items)
+      const answer = items[index]?.answer ?? ""
+      return index === items.length - 1 && playing === items[index] ? visible : answer.trimEnd()
     },
     revealing() {
-      ensure()
-      const last = turns().at(-1)
-      return last !== undefined && shown < last.answer.length
+      const items = turns()
+      ensure(items)
+      const last = items.at(-1)
+      return last !== undefined && playing === last && shown < units.length
     },
     markPlayed(turn) {
       played.add(turn)

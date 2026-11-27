@@ -5,6 +5,7 @@ import {
   hints,
   opensFromSession,
   SESSION_OPEN_BIND,
+  THREAD_COPY_BIND,
   type InteractionMode,
 } from "../src/interaction.ts"
 import {
@@ -41,6 +42,7 @@ describe("the key table", () => {
       ["ctrl+down", "step_down"],
       ["delete", "clear"],
       ["enter", "retry"],
+      ["ctrl+shift+c", "copy_thread"],
       ["up", "recall_older"],
       ["down", "recall_newer"],
       ["up", "choose_up"],
@@ -60,6 +62,7 @@ describe("the key table", () => {
       "list",
       "step_down",
       "clear",
+      "copy_thread",
       "recall_older",
       "recall_newer",
     ]) {
@@ -96,6 +99,22 @@ describe("the key table", () => {
     expect(retry(mode({ canRetry: true, waiting: true }))?.enabled()).toBe(false)
     expect(retry(mode({ canRetry: true, typed: true }))?.enabled()).toBe(false)
     expect(retry(mode({ canRetry: true, listed: true }))?.enabled()).toBe(false)
+  })
+
+  test("whole-thread copy has a keyboard bind and a palette action when a thread exists", () => {
+    expect(THREAD_COPY_BIND).toBe("ctrl+shift+c")
+    const copy = bindings(() => mode()).find((binding) => binding.intent === "copy_thread")
+    expect(copy).toMatchObject({
+      id: "session.aside.copy",
+      bind: THREAD_COPY_BIND,
+      title: "Copy the whole side thread",
+      palette: true,
+    })
+    expect(copy?.enabled()).toBe(true)
+    expect(
+      bindings(() => mode({ canClear: false })).find((binding) => binding.intent === "copy_thread")
+        ?.enabled(),
+    ).toBe(false)
   })
 
   test("the list effect follows the list state", () => {
@@ -168,7 +187,7 @@ describe("the hint table", () => {
   })
 
   test("every key the row names is a bind the window takes", () => {
-    const bound = new Set(["ctrl+up/down", "ctrl+home/end", "delete", "enter"])
+    const bound = new Set(["ctrl+up/down", "ctrl+home/end", "delete", "ctrl+shift+c", "enter"])
     for (const m of MODES) {
       for (const [key] of hintsFor(m, { panelWidth: 200 })) expect(bound.has(key)).toBe(true)
     }
@@ -204,6 +223,18 @@ describe("the hint table", () => {
     expect(hints(IDLE, 18).map(([key]) => key)).toEqual(["ctrl+home/end"])
     expect(hints(IDLE, 10)).toEqual([])
   })
+
+  test("whole-thread copy is named only when a wider tier has room", () => {
+    expect(hints(IDLE, 63).some(([key]) => key === THREAD_COPY_BIND)).toBe(false)
+    expect(hints(IDLE, 200).map(([key]) => key)).toEqual([
+      "ctrl+up/down",
+      "ctrl+home/end",
+      "delete",
+      THREAD_COPY_BIND,
+    ])
+    expect(hints(IDLE_TYPED, 200).map(([key]) => key)).toEqual(["ctrl+home/end", THREAD_COPY_BIND])
+    expect(hints(mode({ canClear: false }), 200).some(([key]) => key === THREAD_COPY_BIND)).toBe(false)
+  })
 })
 
 describe("the hints of a mode", () => {
@@ -217,6 +248,7 @@ describe("the hints of a mode", () => {
       "ctrl+up/down",
       "ctrl+home/end",
       "delete",
+      THREAD_COPY_BIND,
     ])
     expect(keyNames(mode({ canRetry: true, typed: true }))).not.toContain("enter")
     expect(keyNames(mode({ canRetry: true, listed: true }))).not.toContain("enter")
@@ -228,11 +260,11 @@ describe("the hints of a mode", () => {
 
   test("a transcript that fits drops the jump, because there is nowhere to jump", () => {
     expect(keyNames(mode({ canJump: false }))).toEqual(["ctrl+up/down", "delete"])
-    expect(keyNames(mode({ typed: true, canJump: false }))).toEqual([])
+    expect(keyNames(mode({ typed: true, canJump: false }))).toEqual(["ctrl+shift+c"])
   })
 
-  test("a typed question names the jump alone, since Enter needs no teaching", () => {
-    expect(keyNames(IDLE_TYPED)).toEqual(["ctrl+home/end"])
+  test("a typed question names the jump and the keyboard copy", () => {
+    expect(keyNames(IDLE_TYPED)).toEqual(["ctrl+home/end", "ctrl+shift+c"])
   })
 
   test("a waiting window with an empty composer names the list and the jump", () => {
@@ -240,7 +272,7 @@ describe("the hints of a mode", () => {
   })
 
   test("a waiting window with a question typed names the queue", () => {
-    expect(keyNames(WAITING_TYPED)).toEqual(["enter", "ctrl+home/end"])
+    expect(keyNames(WAITING_TYPED)).toEqual(["enter", "ctrl+home/end", "ctrl+shift+c"])
   })
 
   test("no row names a key the reader already knows", () => {

@@ -32,6 +32,7 @@ type Harness = {
   readonly calls: () => readonly GenerateCall[]
   readonly notices: () => readonly Notice[]
   readonly raised: () => readonly string[]
+  readonly released: () => readonly string[]
   readonly answer: (text: string) => Promise<void>
   readonly reject: (error: unknown) => Promise<void>
   readonly deleteSession: (sessionID: string) => void
@@ -47,6 +48,7 @@ const harness = (): Harness => {
   const calls: GenerateCall[] = []
   const notices: Notice[] = []
   const raised: string[] = []
+  const released: string[] = []
   let deleted: ((sessionID: string) => void) | undefined
   let stopped = false
   let currentID: string | undefined
@@ -75,6 +77,9 @@ const harness = (): Harness => {
     raise(sessionID) {
       raised.push(sessionID)
     },
+    releasePlayback(sessionID) {
+      released.push(sessionID)
+    },
     publish(next) {
       published = next
     },
@@ -91,6 +96,7 @@ const harness = (): Harness => {
     calls: () => calls,
     notices: () => notices,
     raised: () => raised,
+    released: () => released,
     answer: async (text) => {
       const call = waiting.shift()
       if (!call) throw new Error("nothing is waiting for an answer")
@@ -393,6 +399,7 @@ describe("a deleted session", () => {
     h.deleteSession(a)
     expect(call?.signal.aborted).toBe(true)
     expect(h.published().has(a)).toBe(false)
+    expect(h.released()).toEqual([a])
 
     await h.answer("too late")
     expect(h.published().has(a)).toBe(false)

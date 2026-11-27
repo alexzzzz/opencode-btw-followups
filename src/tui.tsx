@@ -6,6 +6,7 @@ import { opensFromSession, SESSION_OPEN_BIND } from "./interaction.ts"
 import { createSyntaxStyle } from "./syntax.ts"
 import { panelHeights } from "./layout.ts"
 import { movedSinceLast, showsBadge, stateOf, type Sides } from "./state.ts"
+import { releasePlayback } from "./playback.ts"
 import { Badge, ThreadDialog } from "./window.tsx"
 
 const ID = "btw-followups.tui"
@@ -110,6 +111,7 @@ export default {
       raise(sessionID) {
         showWindow(sessionID)
       },
+      releasePlayback,
       publish(next) {
         setSides(next)
       },

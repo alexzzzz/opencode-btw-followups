@@ -45,8 +45,13 @@ const surface = (
 
 const none = () => false
 
-const at = (s: PointerSurface, x: number, y: number, selecting = none): AnswerPointer =>
-  pointerAt({ x, y }, s, selecting)
+const at = (
+  s: PointerSurface,
+  x: number,
+  y: number,
+  selecting = none,
+  copyable: () => boolean = () => true,
+): AnswerPointer => pointerAt({ x, y }, s, selecting, copyable)
 
 describe("the text a click copies", () => {
   const copied = (token: AnswerToken) => at(surface([block(token, 0, 1)]), 2, 0).copy
@@ -140,6 +145,22 @@ describe("a paragraph that grew in place", () => {
     expect(at(s, 2, 0).copy).toBe("First paragraph.")
     growing.token = paragraph(text("First paragraph, now longer."))
     expect(at(s, 2, 0).copy).toBe("First paragraph, now longer.")
+  })
+})
+
+describe("copy eligibility", () => {
+  const s = surface([block(paragraph(text("a completed command")), 0, 1)])
+
+  test("a partial answer keeps its rail but copies nothing", () => {
+    expect(at(s, 2, 0, none, () => false)).toEqual({
+      place: { top: 0, height: 1 },
+      rail: RAIL,
+      copy: "",
+    })
+  })
+
+  test("a completed answer copies its whole block", () => {
+    expect(at(s, 2, 0, none, () => true).copy).toBe("a completed command")
   })
 })
 
