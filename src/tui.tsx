@@ -121,9 +121,9 @@ export default {
       if (
         panelHeights({ rows: height, listed: false, composerRows: 0, needed: 0 }).maxHeight === 0
       ) {
-        thread.failed(
-          sessionID,
+        tell(
           `This terminal is ${height} rows tall and too short for the window. Make it taller.`,
+          "warning",
         )
         return false
       }
@@ -139,6 +139,7 @@ export default {
             sessionMoved={() => movedSinceLast(view(sessionID).turns, spoken(sessionID))}
             remember={(draft, place) => thread.remember(sessionID, draft, place)}
             ask={(question) => thread.ask(sessionID, question)}
+            retry={() => thread.retry(sessionID)}
             clear={() => thread.clear(sessionID)}
             close={lowerWindow}
             copy={copy}
@@ -148,7 +149,6 @@ export default {
         lowerWindow,
       )
       context.ui.dialog.set({ size: "large", centered: true })
-      thread.dismiss(sessionID)
       if (view(sessionID).pending.length > 0) thread.send(sessionID)
       return true
     }

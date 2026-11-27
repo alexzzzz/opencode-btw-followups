@@ -71,10 +71,10 @@ would work and was not wanted.
 
 `Delete` drops the thread, and it is also the key a focused textarea takes as a forward
 delete. A `mode: "modal"` keymap layer resolves ahead of the focused renderable, which is
-what lets the window take the key at all. The window takes it only while the composer is empty,
-where a forward delete has nothing to do; a composer holding text keeps it, command returns
-`false`, and the field deletes as it always would. The host's input keymap binds `Ctrl+D` and
-`Shift+Delete` to the same forward delete, and the window does not take either.
+what lets the window take the key at all. The window takes it only while no answer is active,
+the composer is empty and the quick prompt list is closed. A composer holding text keeps it,
+the command returns `false`, and the field deletes as it always would. The host's input keymap
+binds `Ctrl+D` and `Shift+Delete` to the same forward delete, and the window does not take either.
 
 One press would therefore sit one careless keystroke away from throwing away a conversation
 that cannot be recovered, so the drop waits for a second press within four seconds and the
@@ -83,7 +83,8 @@ armed. Under the kitty protocol the host marks a repeat with `eventType: "repeat
 are ignored; a terminal without that protocol sends the same press again with no marker at
 all, so the second press must also arrive at least 300 ms after the first, which is longer
 than keyboard autorepeat ever takes. Typing the first character into the composer disarms the
-warning, because an empty composer is the only place the key means a clear.
+warning, because an empty composer is the only place the key means a clear. Asking a quick
+prompt disarms it too, because that request starts new work under the warning.
 
 The warning takes the footer row: on the shortest terminal `transcript()` allows the panel
 is already full once the composer has grown to `COMPOSER_ROWS`, and one more row would push
@@ -93,8 +94,10 @@ warning whole for those four seconds.
 What a clear leaves alone is deliberate. The turns and the failure go, because the failure
 names a question that is not in the thread. A request already sent is not called off and its
 answer joins the emptied thread, the queue keeps what has not gone out, and the draft stays:
-the reader asked to drop the history, not the work in progress. A clear also resets the
-reveal timer and the "new answers below" notice, since both count turns that are gone.
+the reader asked to drop the history, not the work in progress. A paused queue stays paused,
+so clearing a failed thread cannot turn into an automatic retry. A new question resumes it.
+A clear also resets the reveal timer and the "new answers below" notice, since both count turns
+that are gone.
 
 ## The questions asked before
 
@@ -186,8 +189,9 @@ input table leaves free, and the footer hint names them.
 
 ## The badge in the prompt row
 
-The badge is the `btw` the plugin draws in the host's prompt row, and it is the reader's
-only way back to a question that is being answered while the window is down.
+The badge is the `btw` the plugin draws in the host's prompt row. It is the reader's way back
+to work that is active, waiting in a queue, or paused by a failure while the window is down.
+The session id comes from the row, so a badge always opens the thread that owns the work.
 
 The evidence was taken against OpenCode 2.1.2 and its `@opencode/plugin` 2.1.2, whose slot
 map publishes `prompt.footer.status` with the session id, the mode and the details flag,
@@ -527,11 +531,15 @@ key that does nothing.
 
 The rest is what the window invented. `ctrl+up/down prompts` opens a list nothing else in the host
 has, and it is named only over an empty composer, because the first keystroke closes the list.
-`delete clear thread` drops the whole side conversation, which the row names only while the field
-is empty, so the key stays a forward delete otherwise, and only while the thread holds a turn,
-because `Delete` on an empty thread does nothing. `enter queues` is the one version of the send
-worth saying: while a question is out the press does not send, it queues the next one behind the
-answer that is arriving, and that is a fact about the state rather than about the key.
+`delete clear thread` drops the whole side conversation, which the row names only while no answer
+is active, the field is empty and the quick list is closed, so the key stays a forward delete
+otherwise, and only while the thread holds a turn, because `Delete` on an empty thread does
+nothing. `enter queues` is the one version of the send worth saying: while a question is out the
+press does not send, it queues the next one behind the answer that is arriving, and that is a fact
+about the state rather than about the key.
+`enter retry` names the recovery action while a failed queue is paused and the composer is
+empty. The row gives up the clear first, then the jump, then the list, while retry stays
+beside the remaining hints until only the jump fits.
 
 The `queue` entry in the table carries no keymap command of its own: `Enter` is already the
 composer's submit, so the dialog leaves that intent a no-op and the field does the work. The entry
@@ -541,7 +549,7 @@ them; a hint built outside it would be a second copy that could drift.
 The header carries `esc close` in every mode that fits the panel at all, so the row spends
 nothing on the escape.
 
-An eighty-eight-cell panel reads, in the four modes, as measured in the running window:
+An eighty-eight-cell panel reads as follows in the running window:
 
 - empty composer, nothing out, a thread to clear and text above or below:
   `ctrl+up/down prompts · ctrl+home/end jump · delete clear thread`
@@ -550,6 +558,7 @@ An eighty-eight-cell panel reads, in the four modes, as measured in the running 
   fits, because `Enter` needs no teaching and the row keeps `copy thread` on the left
 - empty composer, a question out: `ctrl+up/down prompts · ctrl+home/end jump`
 - text in the composer, a question out: `enter queues · ctrl+home/end jump`
+- empty composer, a failed queue paused: `enter retry · ctrl+up/down prompts · ctrl+home/end jump`
 
 The row gives up its hints from the tail: the clear goes first, then the jump, then the list,
 because the clear is written down in the readme and the list is what an empty composer is for.
@@ -567,31 +576,38 @@ has already found the answer themselves.
 
 ## The queue behind the window
 
-The lifecycle below — one request in flight, the queue that outlives the window, a clear that keeps
-what was not asked to be dropped, an empty answer becoming a failure, and a deleted session calling
-its request off — lives in `src/thread.ts`, behind `createSessionThread` and its `SessionThread`
-interface. The answer generator and the session-deleted event are adapters injected at its seam,
-and the per-session registries for in-flight answers and draining loops are internal; played
-memory is keyed by session id in `src/playback.ts`, the one place that reads and writes it.
-`test/thread.test.ts` holds the rules.
+The lifecycle below lives in `src/thread.ts`, behind `createSessionThread` and its
+`SessionThread` interface. It covers one request in flight, a queue that outlives the window,
+a clear that keeps pending work, an explicit pause after failure, and a deleted session calling
+its request off. The answer generator and the session-deleted event are adapters injected at
+its seam, and the per-session registries for in-flight answers and draining loops are internal.
+Played memory is keyed by session id in `src/playback.ts`, the one place that reads and writes
+it. `test/thread.test.ts` holds the rules.
 
-One request at a time per session. The questions asked while one is out go out together as the
+One request runs at a time per session. Questions asked while one is out go out together as the
 next one, numbered by `thread`, so they are answered as a list rather than as one run-together
 question.
 
 The loop drains the queue once more on its way out, because a question asked in the tick between
 the last answer and the end of the loop finds the session busy, lands in the queue, and would
-otherwise be sent by nothing.
+otherwise be sent by nothing. The extra drain runs only while the queue is not paused.
 
 The queue outlives the window. A close ends the view alone, because a question that was asked is
 not un-asked by closing the view, and the loop keeps draining while no window is up, so every
 question asked is answered whether the view is down or not. The header counts what waits, so
 nothing leaves silently with the frame.
 
-An empty answer stops the queue with the question in the failure, and an error stops it too:
-answering more questions against a gap in the thread is worse than stopping. A deleted session
-calls its request off and is not reported, because there is no conversation left to answer
-about.
+An empty answer or an exception stores the failure and puts the original failed batch back at
+the front of `pending`. The separate entries stay separate, so a retry sends the same numbered
+batch rather than one question with embedded newlines. The state also carries `paused: true`.
+No later question starts automatically, and opening the window neither dismisses the failure
+nor bypasses the pause.
+
+A new question or an explicit retry clears the failure and the pause, then drains the preserved
+queue in order. A failure in the window's own session stays in the transcript without a toast.
+A failure in a closed window or another session produces a toast, and the badge stays visible
+for active, pending or failed work. A deleted session calls its request off and is not reported,
+because there is no conversation left to answer about.
 
 ## What the window says
 
@@ -609,6 +625,12 @@ The header names the model that will answer, read from the session the window be
 because `session.generate` is answered by that session's model and the prompt's own selection
 follows the route the reader may have walked away from. A model the catalogue does not know
 falls back to its own id.
+
+A failed request keeps its title, message and question in the transcript. The `retry question`
+label and `Enter retry` in the footer are enabled only while the queue is paused and the composer
+is empty. Asking a new question is the other recovery path, and the placeholder says that it
+resumes the queue. A selection drag holds both retry paths off, like it holds the quick prompts
+and answer copying off.
 
 A toast the host refuses is swallowed. Every path that shows one has either written what matters
 into the session's state or has nothing else to say it with, and a throw from a click handler
@@ -725,8 +747,10 @@ command, the click on the badge that opens the window, the row of quick question
 they open, the wrap of the pick at both ends of it, a quick question asked by a click, a click
 on a paragraph of an answer and the rail the pointer draws beside it, switching sessions with a
 window up, the line between two exchanges, the markdown of an answer that has finished being
-written, the markdown of that same answer after the window was closed and opened again, and the
-two presses that clear a thread.
+written, the markdown of that same answer after the window was closed and opened again, the
+two presses that clear a thread, `Delete` held off during an answer and over the quick list, the
+clear warning disarmed by a quick prompt, the badge for a paused queue, retry by click and by
+`Enter`, the preserved error after reopening, and the toast for a failure in another session.
 
 ## The picture in the README
 

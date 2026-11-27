@@ -57,11 +57,13 @@ The same shortcuts work in subagent sessions, so you can ask your subagents side
 
 Ask follow-up questions as you would in a normal chat. Each new question includes the earlier questions and answers, so the model has the context it needs.
 
-Use `PageUp`, `PageDown`, or the mouse wheel to read a long thread. Click one part of an answer to copy that section. To copy the whole thread, use `copy thread`. To clear the thread, press `Delete` twice while the input field is empty.
+Use `PageUp`, `PageDown`, or the mouse wheel to read a long thread. Click one part of an answer to copy that section. To copy the whole thread, use `copy thread`. To clear the thread, press `Delete` twice while the input field is empty and no answer is active. With text in the field, `Delete` stays a forward delete. It also leaves the thread alone while the quick prompts are open.
 
 ![The btw badge in the status bar](docs/btw-badge.png)
 
-If you close the window while an answer is being prepared, a `btw` badge appears below the input field. Click it to open the window for that session. You can close the window at any time and come back to it later.
+If you close the window while an answer is being prepared, a `btw` badge appears below the input field. Click it to open the window for that session. The badge also appears when questions are waiting or a request has failed. You can close the window at any time and come back to it later.
+
+If an answer is empty or a request throws an error, the queue pauses. The failed question and every question behind it stay visible, and opening the window again keeps the error. Press `Enter` with an empty input field or click `retry question` to retry. Asking a new question also acknowledges the error and resumes the saved queue in order.
 
 ## Things to keep in mind
 

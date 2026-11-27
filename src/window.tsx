@@ -518,6 +518,7 @@ export function ThreadDialog(props: {
   readonly sessionMoved: () => boolean
   readonly remember: (draft: string, place: Reading | undefined) => void
   readonly ask: (question: string) => void
+  readonly retry: () => void
   readonly clear: () => void
   readonly close: () => void
   readonly copy: () => void
@@ -736,6 +737,7 @@ export function ThreadDialog(props: {
     typed: typed(),
     listed: listed(),
     canClear: props.state().turns.length > 0,
+    canRetry: props.state().paused && props.state().failure?.question !== undefined,
     canJump: readingView().above > 0 || readingView().below > 0,
   })
 
@@ -743,6 +745,15 @@ export function ThreadDialog(props: {
     event?.preventDefault()
     const effect = binding.effect()
     if (effect) applyList(effect)
+  }
+
+  const retryFailed = () => {
+    if (selecting() || !props.state().failure?.question) return
+    clearing.disarm()
+    setBrowse(NOT_BROWSING)
+    setListed(false)
+    scrollToEnd()
+    props.retry()
   }
 
   const runs: Record<Intent, (binding: Binding, input: unknown, event?: KeyEvent) => false | void> = {
@@ -757,6 +768,10 @@ export function ThreadDialog(props: {
       event?.preventDefault()
       if (event?.eventType === "repeat" || event?.repeated) return
       clearing.press()
+    },
+    retry: (_binding, _input, event) => {
+      event?.preventDefault()
+      retryFailed()
     },
     recall_older: (_binding, _input, event) => {
       event?.preventDefault()
@@ -798,6 +813,7 @@ export function ThreadDialog(props: {
 
   const askQuick = (question: string) => {
     if (selecting()) return
+    clearing.disarm()
     setListed(false)
     scrollToEnd()
     props.ask(question)
@@ -831,7 +847,11 @@ export function ThreadDialog(props: {
   const model = () => modelName(context.data, props.sessionID)
   const thinkingText = () => (model() ? `${model()} is thinking...` : "thinking...")
   const placeholder = () =>
-    props.state().active ? "ask to queue the next" : "ask a side question"
+    props.state().active
+      ? "ask to queue the next"
+      : props.state().paused
+        ? "ask to resume the queue"
+        : "ask a side question"
 
   return (
     <box
@@ -949,6 +969,15 @@ export function ThreadDialog(props: {
                   <text fg={theme.text.muted} wrapMode="word">
                     {`Asked: ${failure().question}`}
                   </text>
+                </Show>
+                <Show when={props.state().paused && failure().question}>
+                  <Clickable
+                    base={accent}
+                    muted={error}
+                    label="retry question"
+                    onClick={retryFailed}
+                    wrap={false}
+                  />
                 </Show>
               </box>
             )}
