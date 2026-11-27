@@ -208,14 +208,93 @@ describe("catalogue variants", () => {
     })
   })
 
-  test("a model whose catalogue offers no off variant is unsupported", () => {
+  test("a catalogue reduced level is the option the request carries", () => {
     const model = gateway("deepseek-v4.1-flash-free", [
       { settings: { reasoningEffort: "low" } },
       { settings: { reasoningEffort: "high" } },
       { settings: { reasoningEffort: "max" } },
     ])
+    expect(reasoningOptions(model, false)).toEqual({
+      state: "reduced",
+      level: "low",
+      options: { reasoningEffort: "low" },
+    })
+    expect(reasoningSupport(model)).toBe("supported")
+  })
+
+  test("the cheapest catalogue level wins over the listed order", () => {
+    const model = gateway("deepseek-v4.1-flash-free", [
+      { settings: { reasoningEffort: "high" } },
+      { settings: { reasoningEffort: "low" } },
+    ])
+    expect(reasoningOptions(model, false)).toEqual({
+      state: "reduced",
+      level: "low",
+      options: { reasoningEffort: "low" },
+    })
+  })
+
+  test("a minimal catalogue variant is reduced to minimal", () => {
+    const model = gateway("seaglass-alpha-free", [
+      { settings: { reasoningEffort: "minimal" } },
+      { settings: { reasoningEffort: "low" } },
+    ])
+    expect(reasoningOptions(model, false)).toEqual({
+      state: "reduced",
+      level: "minimal",
+      options: { reasoningEffort: "minimal" },
+    })
+  })
+
+  test("a medium catalogue variant is reduced to medium", () => {
+    const model = gateway("medium-only", [
+      { settings: { reasoningEffort: "medium" } },
+      { settings: { reasoningEffort: "high" } },
+    ])
+    expect(reasoningOptions(model, false)).toEqual({
+      state: "reduced",
+      level: "medium",
+      options: { reasoningEffort: "medium" },
+    })
+  })
+
+  test("an included low thinking level is reduced", () => {
+    const model = gateway("gemini-4-argon", [
+      { settings: { thinkingConfig: { includeThoughts: true, thinkingLevel: "low" } } },
+      { settings: { thinkingConfig: { includeThoughts: true, thinkingLevel: "high" } } },
+    ])
+    expect(reasoningOptions(model, false)).toEqual({
+      state: "reduced",
+      level: "low",
+      options: { thinkingConfig: { includeThoughts: true, thinkingLevel: "low" } },
+    })
+  })
+
+  test("an off variant wins over a cheaper reduced variant", () => {
+    const model = gateway("hy4-flash-free", [
+      { settings: { reasoningEffort: "low" } },
+      { settings: { reasoningEffort: "none" } },
+    ])
+    expect(reasoningOptions(model, false)).toEqual({
+      state: "applied",
+      options: { reasoningEffort: "none" },
+    })
+  })
+
+  test("a catalogue whose cheapest level is high is unsupported", () => {
+    const model = gateway("deepseek-v4-pro", [
+      { settings: { reasoningEffort: "high" } },
+      { settings: { reasoningEffort: "max" } },
+    ])
     expect(reasoningOptions(model, false)).toEqual({ state: "unsupported" })
     expect(reasoningSupport(model)).toBe("unsupported")
+  })
+
+  test("requireReasoning wins over a reduced variant", () => {
+    const model = gateway("always-thinks-reduced", [{ settings: { reasoningEffort: "low" } }])
+    expect(reasoningOptions({ ...model, compatibility: { requireReasoning: true } }, false)).toEqual({
+      state: "unsupported",
+    })
   })
 
   test("a model that requires its reasoning field ignores its variants", () => {
@@ -248,14 +327,19 @@ describe("reasoningSupport", () => {
 })
 
 describe("reasoningStateLabel", () => {
-  test("a supported model follows the toggle", () => {
-    expect(reasoningStateLabel(true, "supported")).toBe("on")
-    expect(reasoningStateLabel(false, "supported")).toBe("off")
+  test("an unchanged request reads on and a full off option reads off", () => {
+    expect(reasoningStateLabel({ state: "unchanged" })).toBe("on")
+    expect(reasoningStateLabel({ state: "applied", options: {} })).toBe("off")
   })
 
-  test("an unsupported model reads unsupported whatever the toggle says", () => {
-    expect(reasoningStateLabel(true, "unsupported")).toBe("unsupported")
-    expect(reasoningStateLabel(false, "unsupported")).toBe("unsupported")
+  test("a reduced decision names its level", () => {
+    expect(reasoningStateLabel({ state: "reduced", level: "low", options: {} })).toEqual({
+      level: "low",
+    })
+  })
+
+  test("an unsupported decision reads unsupported", () => {
+    expect(reasoningStateLabel({ state: "unsupported" })).toBe("unsupported")
   })
 })
 

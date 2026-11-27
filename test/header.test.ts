@@ -35,7 +35,17 @@ describe("headerRow", () => {
   test("the reasoning state reads in words on a wide panel", () => {
     expect(headerRow(88, "1 answered", 3, 6, false, "on").reasoning).toBe("reasoning on")
     expect(headerRow(88, "1 answered", 3, 6, false, "off").reasoning).toBe("reasoning off")
+    expect(headerRow(88, "1 answered", 3, 6, false, { level: "low" }).reasoning).toBe("reasoning low")
     expect(headerRow(88, "1 answered", 3, 6, false, "unsupported").reasoning).toBe("reasoning n/a")
+  })
+
+  test("a reduced level shortens through the same three tiers", () => {
+    expect(headerRow(68, "1 answered", 3, 6, false, { level: "low" }).reasoning).toBe("reason low")
+    expect(headerRow(60, "1 answered", 3, 6, false, { level: "low" }).reasoning).toBe("low")
+    expect(headerRow(71, "1 answered", 3, 6, false, { level: "minimal" }).reasoning).toBe(
+      "reason minimal",
+    )
+    expect(headerRow(64, "1 answered", 3, 6, false, { level: "minimal" }).reasoning).toBe("minimal")
   })
 
   test("a narrow panel shortens the reasoning cell before it drops it", () => {
@@ -95,7 +105,14 @@ describe("headerRow", () => {
   })
 
   test("the row a panel gets never needs more cells than the panel has", () => {
-    const states: readonly ReasoningState[] = ["on", "off", "unsupported"]
+    const states: readonly ReasoningState[] = [
+      "on",
+      "off",
+      "unsupported",
+      { level: "low" },
+      { level: "minimal" },
+      { level: "medium" },
+    ]
     for (let width = 11; width <= 140; width += 1) {
       for (const count of ["", "1 answered", "3 answered, 2 waiting"]) {
         for (const aboveRows of [0, 3, 120]) {

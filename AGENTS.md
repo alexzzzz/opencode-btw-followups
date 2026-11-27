@@ -291,3 +291,7 @@ copies drift.
   a setting changed where it cannot take effect has no visible result, and a reader told that
   reasoning is off while the answer still thinks has been told something false. The header cell
   and the palette action are one toggle, and the state is global to the plugin.
+- Use the cheapest level the catalogue offers when it cannot turn reasoning fully off, because the
+  catalogue names the value the provider accepts and a level of `high` or above is the default the
+  reader already pays. The header and the toast name that level, and a model with no usable level
+  stays unsupported. `src/reasoning.ts` owns the choice, and `test/reasoning.test.ts` holds it.
