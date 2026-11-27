@@ -666,10 +666,9 @@ does not clip, it wraps: a phone gave the dialog about forty-four cells and the 
 as `bt` above `w`, with the count wrapped between them and `esc close` cut to `esc clo`.
 
 `src/header.ts` builds the row as a list of cells, spacers included, so the width it measures is
-the width the row draws, and it takes the first list that fits. The count goes first, then the
-notice of what is above, then the escape hint; the quick marker shortens to `▸ 6 prompts` and
-then `▸ 6` only after the escape hint is gone. A panel of forty-four cells keeps the title, the
-full marker and the escape hint in forty-one cells.
+the width the row draws, and it takes the first list that fits. A panel of forty-four cells
+keeps the title, the full marker and the escape hint in forty-one cells. The order in which the
+cells give way is under "Reasoning in a side answer", beside the reasoning cell that joins them.
 
 The header names the model that will answer, read from the session the window belongs to,
 because `session.generate` is answered by that session's model and the prompt's own selection
@@ -685,6 +684,105 @@ and answer copying off.
 A toast the host refuses is swallowed. Every path that shows one has either written what matters
 into the session's state or has nothing else to say it with, and a throw from a click handler
 would replace the message the reader needed with one they cannot act on.
+
+## Reasoning in a side answer
+
+The header carries one cell that says whether side questions are sent with reasoning, and a
+click on it flips the setting. `src/reasoning.ts` decides what a request carries,
+`src/contract.ts` carries the value between the two halves, and `src/index.ts` applies it.
+
+The setting lives on the server because the terminal half outlives nothing. A window closes, a
+terminal restarts, a reload rebuilds the terminal half with its signals at their defaults, and a
+value kept there would be lost at each of those points. The server half is set up once per host
+process, so it holds the value while the host runs, and `context.storage` keeps it under
+`btw-followups.reasoning` for the next start. The value is global rather than per session
+because it is a choice about what a side answer may cost, and a reader who made that choice
+does not want it back on in the next session. A missing or malformed stored value reads as on,
+which is what the plugin did before the toggle existed.
+
+The two halves meet at `src/contract.ts`, a third package export that both import. Its `get`
+takes an empty object and its `set` takes `{ enabled: boolean }`, and both shapes set
+`additionalProperties: false`, so a field added on one side fails the typecheck on the other
+instead of drifting. The release smoke imports every entrypoint, so a package that loses the
+contract fails before publish rather than at the first toggle.
+
+The hook reads the marker. `MARKER` in `src/prompt.ts` is the first sentence of every side
+question, `isSideQuestion` tests it with `startsWith`, and the server hook checks the last user
+message's text part before it touches anything. Reading the marker is the identification the
+window already relies on, so no protocol field and no hidden token is needed. The prompt stays
+byte for byte what the model saw before the toggle, and a transient generation call from another
+plugin, which carries no marker, is left alone. The hook returns at once while the setting is
+on, so a reader who never touches it sends exactly the request the plugin sent before.
+
+The option table is best effort and protocol based. Each row is the option the protocol schema
+in `@opencode/ai` declares, not a guess from the provider's name, and `test/reasoning.test.ts`
+holds the rows:
+
+- Anthropic and Anthropic-compatible endpoints send `thinking: { type: "disabled" }`. The
+  `anthropic-messages` protocol declares `"disabled"` in the thinking type union, and an
+  endpoint that speaks that protocol accepts the same field.
+- OpenAI, Azure, xAI, Mistral and Copilot models send `reasoningEffort: "none"`. The effort
+  enum in those protocols carries `"none"`, which is the documented value for an answer with no
+  reasoning.
+- Gemini models send `thinkingConfig: { thinkingBudget: 0, includeThoughts: false }`. A zero
+  budget is the off value the protocol documents for the models that accept one, and
+  `includeThoughts` false keeps thought text out of the reply.
+- Cohere and Z.ai models send `thinking: { type: "disabled" }`, the value `cohere-chat` and
+  `zai-chat` both declare.
+- Alibaba models send `enableThinking: false`, the boolean `alibaba-chat` declares.
+- Venice models send `reasoning: { enabled: false }`, the flag in `venice-chat`.
+- Bedrock sends `thinking: { type: "disabled" }` for a Claude model only, because
+  `bedrock-converse` says that value applies to Claude models alone.
+
+The family comes from the model's package first and from the provider id second, because a
+gateway serves another vendor's model under its own id. A Claude model reached through the
+`opencode` provider is answered by the Anthropic protocol, and the package names that protocol.
+A model with no package falls back to its id, and an id that names no known family is
+unsupported.
+
+Some models stay unsupported on purpose. A Bedrock model that is not Claude has an effort list
+of `high`, `low`, `max`, `medium` and `xhigh` with no off value, and an o-series, base `gpt-5`,
+`gpt-oss`, `codex` or DeepSeek reasoner model reasons whatever the effort says, so the table
+returns unsupported instead of an option the provider would reject. A model whose catalogue
+entry sets `requireReasoning` is unsupported for the same reason, because the field is required
+and cannot be turned off. An option a provider rejects fails the whole request and costs the
+reader the answer, while an unsupported state costs only the wait, so nothing is sent that the
+protocol schema does not declare.
+
+The header reads `on` whenever the setting is on, and asks `reasoningSupport` about the selected
+model only once it is off. A model that cannot be silenced therefore never turns a working
+default into a warning, and the state appears when the reader has a reason to look at it. The
+unsupported state reads `reasoning n/a`, which says that the request went out unchanged.
+
+The header fits the reasoning cell the way it fits every other cell, and the cell gives way
+early. With a count of `1 answered` and three rows above, the cells give way in this order: the
+count, the wording of the state, the state itself, the notice of what is above, the marker's
+full wording, the escape hint, the marker's number, and the title alone. The wording shortens
+from `reasoning on` to `reason on` to `on`, and `reasoning n/a` to `reason n/a` and then `n/a`.
+The count goes first because the transcript already shows how much has been answered. The state
+gives way before the escape hint and the quick marker because the window is where both of those
+are named, and the state also has a handle in the command palette, so dropping the cell costs
+the click and not the setting. A panel 68 cells wide keeps `reason off` and drops the count. At
+54 the state is gone and the escape, the notice and the full marker stay, and at 43 the marker
+still has its full wording beside the escape.
+
+The toggle is a mouse up on the cell, the click the host sends, and the palette action
+`session.aside.reasoning` flips the same value. No key is bound, because every key the window
+could take already means something to the composer or to the session, and a setting a reader
+changes once does not deserve one. The label is drawn only while the cell fits, so on a narrow
+panel the palette action is the way in.
+
+The adapter reads the value at send time. `sendNext` in `src/thread.ts` calls the `reasoning`
+accessor once per outgoing batch, after the pending questions are joined, so a question asked
+before a flip and sent after it goes out with the new value, and a batch asked together goes
+out with one value because it is one request. A retry goes through the same call, so it obeys
+the value current when it is retried. A request already in flight keeps the value it was sent
+with, because the server read the stored setting when the request arrived and applied the option
+to that request alone. The terminal awaits a pending write before it calls `session.generate`,
+so a click followed in the same tick by a send cannot let the server read the previous value.
+
+`src/reasoning.ts` carries no comment. Each row's reason is above, beside the protocol schema
+that declares the option, and a comment in the module would be a second copy of that fact.
 
 ## Host compatibility
 
