@@ -5,7 +5,7 @@ import {
   type BoxRenderable,
   type ColorInput,
   type KeyEvent,
-  type MarkdownRenderable,
+  MarkdownRenderable,
   type MouseEvent,
   type RenderNodeContext,
   type ScrollBoxRenderable,
@@ -35,13 +35,26 @@ import { COMPOSER_ROWS, panelHeights } from "./layout.ts"
 import { RAIL } from "./rail.ts"
 import { createReading, type ReadingView, type Scrollbox } from "./reading.ts"
 import { HEADER_GAP, HEADER_PAD, HEADER_TITLE, CLOSE_LABEL, headerRow, type HeaderRow } from "./header.ts"
-import { emptyPointer, pointerAt, samePointer, type AnswerPointer, type PointerSurface } from "./pointer.ts"
+import {
+  answerToken,
+  emptyPointer,
+  pointerAt,
+  samePointer,
+  type AnswerBlock,
+  type AnswerPointer,
+  type AnswerToken,
+  type PointerSurface,
+} from "./pointer.ts"
 import { NOT_BROWSING, recalled, type Browse } from "./history.ts"
 import { QUICK_PROMPTS, nextChoice, quickCardDress, quickCardRows, quickCardWidth } from "./quick.ts"
 import { createAnswerPlayback, type Timer } from "./playback.ts"
 import { gapBelow, type Failure, type Reading, type SideState } from "./state.ts"
 
 type Theme = Plugin.Context["theme"]
+
+type MarkdownBlock = AnswerBlock & { readonly index: number }
+
+type MarkdownOwner = MarkdownRenderable & { readonly blocks?: readonly MarkdownBlock[] }
 
 const BOLD = createTextAttributes({ bold: true })
 
@@ -52,6 +65,8 @@ const FRAME_MS = 90
 const DASH = "┈"
 
 const MOVED_LABEL = " the session behind btw carried on "
+
+const MODERN_MARKDOWN = "renderBlock" in MarkdownRenderable.prototype
 
 const CONFIRM_MS = 4000
 
@@ -170,8 +185,9 @@ function Turn(props: {
   const accent = () => props.theme.hue.interactive[200]
   const muted = () => props.theme.text.muted
 
-  let blocks: MarkdownRenderable | undefined
+  let blocks: MarkdownOwner | undefined
   let answer: BoxRenderable | undefined
+  const states = new Map<number, { token: AnswerToken; renderable: unknown }>()
   const [pointer, setPointer] = createSignal<AnswerPointer>(emptyPointer, { equals: samePointer })
 
   const surface = (): PointerSurface => ({ answer, markdown: blocks })
@@ -180,14 +196,32 @@ function Turn(props: {
 
   const rail = () => pointer().rail
 
-  const clickable = (_token: unknown, context: RenderNodeContext) => {
-    const renderable = context.defaultRender()
-    if (!renderable) return renderable
+  const click = (renderable: NonNullable<ReturnType<RenderNodeContext["defaultRender"]>>) => {
     renderable.onMouseUp = (event: MouseEvent) => {
       const result = pointerAt(event, surface(), props.selecting)
       if (result.copy !== "") props.copy(result.copy)
     }
     return renderable
+  }
+
+  const clickableToken = (_token: unknown, context: RenderNodeContext) => {
+    const renderable = context.defaultRender()
+    return renderable ? click(renderable) : renderable
+  }
+
+  const clickableBlock = (block: MarkdownBlock, context: RenderNodeContext) => {
+    const renderable = context.defaultRender()
+    if (!renderable) return renderable
+    states.set(block.index, { token: answerToken(block), renderable })
+    return click(renderable)
+  }
+
+  const currentStates = () => {
+    const current = new Set(blocks?.blocks?.map((block) => block.index))
+    return [...states]
+      .filter(([index]) => current.has(index))
+      .sort(([left], [right]) => left - right)
+      .map(([, state]) => state)
   }
 
   return (
@@ -227,14 +261,21 @@ function Turn(props: {
               <markdown
                 syntaxStyle={props.syntax}
                 fg={props.theme.markdown.text}
-                renderNode={clickable}
+                {...(MODERN_MARKDOWN
+                  ? { renderBlock: clickableBlock }
+                  : { renderNode: clickableToken, internalBlockMode: "top-level" }) as any}
                 content={props.answer!()}
                 conceal
                 streaming
-                internalBlockMode="top-level"
                 tableOptions={{ style: "grid", cellPaddingX: 1 }}
                 ref={(element) => {
                   blocks = element
+                  if (MODERN_MARKDOWN) {
+                    Object.defineProperty(element, "_blockStates", {
+                      configurable: true,
+                      get: currentStates,
+                    })
+                  }
                 }}
               />
             </box>

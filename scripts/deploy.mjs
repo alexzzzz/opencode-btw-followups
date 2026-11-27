@@ -8,15 +8,15 @@
 // question is only whether the window is running what the tree holds.
 
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises"
-import { homedir } from "node:os"
 import { extname, join } from "node:path"
 import { fileURLToPath } from "node:url"
+import { configDir } from "./config-dir.mjs"
 
 const check = process.argv.includes("--check")
 
 const root = fileURLToPath(new URL("..", import.meta.url))
 const source = join(root, "src")
-const target = join(homedir(), ".config", "opencode", "plugins", "btw-followups")
+const target = join(await configDir(), "plugins", "btw-followups")
 
 const copies = (name) => [".ts", ".tsx"].includes(extname(name))
 
