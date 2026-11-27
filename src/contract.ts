@@ -13,6 +13,12 @@ const empty = {
   additionalProperties: false,
 } as const
 
+export const enabledOf = (value: unknown): boolean | undefined => {
+  if (typeof value !== "object" || value === null) return undefined
+  const enabled = (value as { enabled?: unknown }).enabled
+  return typeof enabled === "boolean" ? enabled : undefined
+}
+
 export default Rpc.define({
   id: "btw-followups.reasoning",
   methods: {

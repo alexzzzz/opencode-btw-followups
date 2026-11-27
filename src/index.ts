@@ -1,15 +1,9 @@
 import { Plugin } from "@opencode/plugin"
-import contract from "./contract.ts"
+import contract, { enabledOf } from "./contract.ts"
 import { isSideQuestion } from "./prompt.ts"
 import { reasoningOptions } from "./reasoning.ts"
 
 const KEY = "btw-followups.reasoning"
-
-const enabledOf = (value: unknown) => {
-  if (typeof value !== "object" || value === null) return undefined
-  const enabled = (value as { enabled?: unknown }).enabled
-  return typeof enabled === "boolean" ? enabled : undefined
-}
 
 export default Plugin.define({
   id: "btw-followups",

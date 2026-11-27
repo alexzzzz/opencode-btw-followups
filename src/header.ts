@@ -1,4 +1,5 @@
 import { quickMarker } from "./quick.ts"
+import type { ReasoningState } from "./reasoning.ts"
 
 export const HEADER_GAP = 2
 
@@ -7,8 +8,6 @@ export const HEADER_PAD = 2
 export const HEADER_TITLE = "btw"
 
 export const CLOSE_LABEL = "esc close"
-
-export type ReasoningState = "on" | "off" | "unsupported"
 
 export type HeaderCell = "count" | "reasoning" | "marker" | "above" | "close" | "spacer"
 

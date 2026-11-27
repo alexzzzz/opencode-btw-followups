@@ -5,6 +5,15 @@ export type ReasoningModel = {
   readonly compatibility?: Record<string, unknown>
 }
 
+export type ModelRef = {
+  readonly providerID: string
+  readonly modelID: string
+}
+
+export type ReasoningSupport = "supported" | "unsupported"
+
+export type ReasoningState = "on" | "off" | "unsupported"
+
 export type ReasoningDecision =
   | { readonly state: "unchanged" }
   | { readonly state: "unsupported" }
@@ -29,56 +38,52 @@ const ALWAYS_REASONS = [
   /^deepseek-(?:r1|reasoner)(?:$|[-.])/,
 ]
 
-const familyFromPackage = (pkg: string | undefined): Family | undefined => {
-  if (!pkg) return undefined
-  const name = pkg.toLowerCase()
-  if (name.includes("anthropic")) return "anthropic"
-  if (name.includes("bedrock")) return "bedrock"
-  if (name.includes("google") || name.includes("gemini")) return "gemini"
-  if (name.includes("cohere")) return "cohere"
-  if (name.includes("alibaba") || name.includes("dashscope")) return "alibaba"
-  if (name.includes("zai") || name.includes("zhipu")) return "zai"
-  if (name.includes("venice")) return "venice"
-  if (
-    name.includes("openai") ||
-    name.includes("azure") ||
-    name.includes("xai") ||
-    name.includes("mistral")
-  ) {
-    return "effort"
-  }
-  return undefined
+const CLAUDE_REASONER = /claude-(?:opus|sonnet|haiku)-(?:3[.-]7|[4-9])/i
+
+const REASONING_MODELS: Partial<Record<Family, RegExp>> = {
+  anthropic: CLAUDE_REASONER,
+  bedrock: CLAUDE_REASONER,
+  effort: /^(?:gpt-5\.\d|magistral|mistral-large|grok-[3-9])/i,
+  gemini: /^gemini-(?:2\.5|[3-9])/i,
+  cohere: /^command-a/i,
+  alibaba: /^qwen3/i,
+  zai: /^glm-(?:4\.[5-9]|[5-9])/i,
 }
 
-const familyFromProvider = (providerID: string): Family => {
-  const id = providerID.toLowerCase()
-  if (id.includes("anthropic") || id.includes("claude")) return "anthropic"
-  if (id.includes("bedrock")) return "bedrock"
-  if (id.includes("google") || id.includes("gemini") || id.includes("vertex")) return "gemini"
-  if (id.includes("cohere")) return "cohere"
-  if (id.includes("alibaba") || id.includes("dashscope") || id.includes("qwen")) return "alibaba"
-  if (id.includes("zai") || id.includes("zhipu") || id.includes("glm")) return "zai"
-  if (id.includes("venice")) return "venice"
-  if (
-    id.includes("openai") ||
-    id.includes("azure") ||
-    id.includes("xai") ||
-    id.includes("mistral") ||
-    id.includes("copilot")
-  ) {
-    return "effort"
-  }
-  return "unknown"
+const DISABLED_THINKING: Record<string, unknown> = { thinking: { type: "disabled" } }
+
+const FAMILY_HINTS: readonly { readonly family: Family; readonly words: readonly string[] }[] = [
+  { family: "anthropic", words: ["anthropic", "claude"] },
+  { family: "bedrock", words: ["bedrock"] },
+  { family: "gemini", words: ["google", "gemini", "vertex"] },
+  { family: "cohere", words: ["cohere"] },
+  { family: "alibaba", words: ["alibaba", "dashscope", "qwen"] },
+  { family: "zai", words: ["zai", "zhipu", "glm"] },
+  { family: "venice", words: ["venice"] },
+  { family: "effort", words: ["openai", "azure", "xai", "mistral", "copilot"] },
+]
+
+const familyFrom = (hint: string | undefined): Family | undefined => {
+  if (!hint) return undefined
+  const name = hint.toLowerCase()
+  return FAMILY_HINTS.find((entry) => entry.words.some((word) => name.includes(word)))?.family
 }
 
 const familyOf = (model: ReasoningModel): Family =>
-  familyFromPackage(model.package) ?? familyFromProvider(model.providerID)
+  familyFrom(model.package) ?? familyFrom(model.providerID) ?? "unknown"
 
-const claude = (model: ReasoningModel) => /claude|anthropic/i.test(model.modelID)
+const knownReasoner = (family: Family, model: ReasoningModel) =>
+  REASONING_MODELS[family]?.test(model.modelID) ?? true
+
+const disabledThinking = (): ReasoningDecision => ({
+  state: "applied",
+  options: { ...DISABLED_THINKING },
+})
 
 const decisionFor = (family: Family, model: ReasoningModel): ReasoningDecision => {
-  if (family === "anthropic") {
-    return { state: "applied", options: { thinking: { type: "disabled" } } }
+  if (!knownReasoner(family, model)) return { state: "unsupported" }
+  if (family === "anthropic" || family === "bedrock" || family === "cohere" || family === "zai") {
+    return disabledThinking()
   }
   if (family === "gemini") {
     return {
@@ -86,19 +91,11 @@ const decisionFor = (family: Family, model: ReasoningModel): ReasoningDecision =
       options: { thinkingConfig: { thinkingBudget: 0, includeThoughts: false } },
     }
   }
-  if (family === "cohere" || family === "zai") {
-    return { state: "applied", options: { thinking: { type: "disabled" } } }
-  }
   if (family === "alibaba") {
     return { state: "applied", options: { enableThinking: false } }
   }
   if (family === "venice") {
     return { state: "applied", options: { reasoning: { enabled: false } } }
-  }
-  if (family === "bedrock") {
-    return claude(model)
-      ? { state: "applied", options: { thinking: { type: "disabled" } } }
-      : { state: "unsupported" }
   }
   if (family === "effort") {
     return ALWAYS_REASONS.some((pattern) => pattern.test(model.modelID))
@@ -108,11 +105,23 @@ const decisionFor = (family: Family, model: ReasoningModel): ReasoningDecision =
   return { state: "unsupported" }
 }
 
+export const modelEntry = (
+  ref: ModelRef | undefined,
+  known: readonly ReasoningModel[] | undefined,
+): ReasoningModel | undefined =>
+  ref && known?.find((item) => item.providerID === ref.providerID && item.modelID === ref.modelID)
+
 export const reasoningOptions = (model: ReasoningModel, enabled: boolean): ReasoningDecision => {
   if (enabled) return { state: "unchanged" }
   if (model.compatibility?.requireReasoning === true) return { state: "unsupported" }
   return decisionFor(familyOf(model), model)
 }
 
-export const reasoningSupport = (model: ReasoningModel): "supported" | "unsupported" =>
+export const reasoningSupport = (model: ReasoningModel): ReasoningSupport =>
   reasoningOptions(model, false).state === "applied" ? "supported" : "unsupported"
+
+export const reasoningStateLabel = (
+  enabled: boolean,
+  support: ReasoningSupport,
+): ReasoningState =>
+  support === "unsupported" ? "unsupported" : enabled ? "on" : "off"
