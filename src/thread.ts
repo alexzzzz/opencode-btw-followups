@@ -33,7 +33,9 @@ export type ThreadAdapters = {
     sessionID: string,
     prompt: string,
     signal: AbortSignal,
+    reasoning: boolean,
   ) => Promise<{ readonly text: string }>
+  readonly reasoning: () => boolean
   readonly onDeleted: (handler: (sessionID: string) => void) => () => void
   readonly spoken: (sessionID: string) => number
   readonly current: () => string | undefined
@@ -127,13 +129,19 @@ export const createSessionThread = (adapters: ThreadAdapters): SessionThread => 
     const { pending, turns } = view(sessionID)
     const question = pending.join("\n")
     const earlier = turns.map((item) => item.turn)
+    const reasoning = adapters.reasoning()
 
     edit(sessionID, { pending: [], active: question })
     const call = new AbortController()
     inFlight.set(sessionID, call)
 
     try {
-      const response = await adapters.generate(sessionID, buildPrompt(earlier, pending), call.signal)
+      const response = await adapters.generate(
+        sessionID,
+        buildPrompt(earlier, pending),
+        call.signal,
+        reasoning,
+      )
       const answer = response.text.trim()
       if (inFlight.get(sessionID) !== call) return "dropped"
       if (!answer) {

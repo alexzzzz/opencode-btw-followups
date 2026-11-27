@@ -45,7 +45,15 @@ import {
 import { COMPOSER_ROWS, listTranscriptRoom, panelHeights } from "./layout.ts"
 import { RAIL } from "./rail.ts"
 import { createReading, type ReadingView, type Scrollbox } from "./reading.ts"
-import { HEADER_GAP, HEADER_PAD, HEADER_TITLE, CLOSE_LABEL, headerRow, type HeaderRow } from "./header.ts"
+import {
+  CLOSE_LABEL,
+  HEADER_GAP,
+  HEADER_PAD,
+  HEADER_TITLE,
+  headerRow,
+  type HeaderRow,
+} from "./header.ts"
+import type { ReasoningState } from "./reasoning.ts"
 import {
   answerToken,
   emptyPointer,
@@ -315,6 +323,7 @@ function WindowHeader(props: {
   readonly theme: Theme
   readonly row: () => HeaderRow
   readonly onToggle: () => void
+  readonly onReasoning: () => void
   readonly onClose: () => void
 }) {
   const muted = () => props.theme.text.muted
@@ -334,6 +343,16 @@ function WindowHeader(props: {
           if (cell === "spacer") return <text fg={muted()} flexGrow={1} />
           if (cell === "count") return <text fg={muted()} wrapMode="none">{row().count}</text>
           if (cell === "above") return <text fg={muted()} wrapMode="none">{row().above}</text>
+          if (cell === "reasoning")
+            return (
+              <Clickable
+                base={props.theme.text.base}
+                muted={muted()}
+                label={row().reasoning}
+                onClick={props.onReasoning}
+                wrap={false}
+              />
+            )
           if (cell === "close")
             return (
               <text fg={muted()} onMouseUp={props.onClose} wrapMode="none">{CLOSE_LABEL}</text>
@@ -551,6 +570,8 @@ export function ThreadDialog(props: {
   readonly state: () => SideState
   readonly syntax: SyntaxStyle
   readonly rows: () => number
+  readonly reasoning: () => ReasoningState
+  readonly onReasoning: () => void
   readonly sessionMoved: () => boolean
   readonly remember: (draft: string, place: Reading | undefined) => void
   readonly ask: (question: string) => void
@@ -876,7 +897,14 @@ export function ThreadDialog(props: {
   const confirmText = () => clearLabel(turnCount(), width())
   const hintTier = () => footerHints(mode(), width(), copyText(), rightText())
   const header = () =>
-    headerRow(width(), countText(), readingView().above, QUICK_PROMPTS.length, listed())
+    headerRow(
+      width(),
+      countText(),
+      readingView().above,
+      QUICK_PROMPTS.length,
+      listed(),
+      props.reasoning(),
+    )
   const listRoom = () => listTranscriptRoom(props.rows(), composerRows())
   const card = createMemo(() => quickCardGeometry(QUICK_PROMPTS, width(), listRoom()))
   const heights = () =>
@@ -919,6 +947,7 @@ export function ThreadDialog(props: {
           setChosen(0)
           setListed(!listed())
         }}
+        onReasoning={props.onReasoning}
         onClose={props.close}
       />
 

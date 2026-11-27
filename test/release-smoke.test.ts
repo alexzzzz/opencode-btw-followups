@@ -4,13 +4,26 @@ import { existsSync } from "node:fs"
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { sourceArchive } from "../scripts/release-smoke.mjs"
+import { sourceArchive, entrypoints } from "../scripts/release-smoke.mjs"
 
 const git = (cwd: string, args: string[]) => {
   const result = spawnSync("git", args, { cwd, encoding: "utf8" })
   if (result.error) throw result.error
   expect(result.status).toBe(0)
 }
+
+test("the release gate imports every entrypoint the package exports", () => {
+  expect(entrypoints.map((entry) => entry.path)).toEqual([
+    "dist/index.js",
+    "dist/tui.js",
+    "dist/contract.js",
+  ])
+  expect(entrypoints.map((entry) => entry.id)).toEqual([
+    "btw-followups",
+    "btw-followups.tui",
+    "btw-followups.reasoning",
+  ])
+})
 
 test("the release source archive copies tracked files and leaves untracked files out", async () => {
   const temporary = await mkdtemp(join(tmpdir(), "btw-source-archive-"))

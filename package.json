@@ -26,7 +26,8 @@
   "type": "module",
   "exports": {
     ".": "./dist/index.js",
-    "./tui": "./dist/tui.js"
+    "./tui": "./dist/tui.js",
+    "./contract": "./dist/contract.js"
   },
   "main": "./dist/index.js",
   "files": [

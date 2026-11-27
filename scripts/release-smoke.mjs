@@ -8,6 +8,12 @@ import { fileURLToPath } from "node:url"
 const root = fileURLToPath(new URL("..", import.meta.url))
 const packageName = "@alexzzzz/opencode-btw-followups"
 
+export const entrypoints = [
+  { name: "server", path: "dist/index.js", specifier: packageName, id: "btw-followups" },
+  { name: "terminal", path: "dist/tui.js", specifier: `${packageName}/tui`, id: "btw-followups.tui" },
+  { name: "contract", path: "dist/contract.js", specifier: `${packageName}/contract`, id: "btw-followups.reasoning" },
+]
+
 export const compatibility = [
   {
     name: "minimum",
@@ -82,8 +88,8 @@ async function pack(source, destination) {
   })
   const packed = JSON.parse(output)
   const files = new Set(packed[0]?.files.map((file) => file.path))
-  for (const entry of ["dist/index.js", "dist/tui.js"]) {
-    if (!files.has(entry)) throw new Error(`The package is missing ${entry}`)
+  for (const entry of entrypoints) {
+    if (!files.has(entry.path)) throw new Error(`The package is missing ${entry.path}`)
   }
   return join(destination, packed[0].filename)
 }
@@ -97,11 +103,11 @@ async function consumer(destination, tarball, host) {
   await writeFile(
     join(destination, "import.mjs"),
     [
-      `const server = await import(${JSON.stringify(packageName)})`,
-      `const terminal = await import(${JSON.stringify(`${packageName}/tui`)})`,
-      'if (server.default?.id !== "btw-followups") throw new Error("The server entrypoint has the wrong export")',
-      'if (terminal.default?.id !== "btw-followups.tui") throw new Error("The terminal entrypoint has the wrong export")',
-      'console.log("Imported the server and terminal entrypoints")',
+      ...entrypoints.flatMap((entry) => [
+        `const ${entry.name} = await import(${JSON.stringify(entry.specifier)})`,
+        `if (${entry.name}.default?.id !== ${JSON.stringify(entry.id)}) throw new Error("The ${entry.name} entrypoint has the wrong export")`,
+      ]),
+      `console.log("Imported the ${entrypoints.map((entry) => entry.name).join(", ")} entrypoints")`,
       "",
     ].join("\n"),
   )
