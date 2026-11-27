@@ -25,8 +25,17 @@ const REASONING_LABELS = {
   unsupported: { full: "reasoning n/a", short: "reason n/a", least: "n/a" },
 } as const
 
-const reasoningLabel = (state: ReasoningState, wording: keyof (typeof REASONING_LABELS)["on"]) =>
-  REASONING_LABELS[state][wording]
+const reasoningLabel = (
+  state: ReasoningState,
+  wording: keyof (typeof REASONING_LABELS)["on"],
+): string => {
+  if (typeof state !== "string") {
+    if (wording === "full") return `reasoning ${state.level}`
+    if (wording === "short") return `reason ${state.level}`
+    return state.level
+  }
+  return REASONING_LABELS[state][wording]
+}
 
 const FULL: readonly HeaderCell[] = [
   "count",

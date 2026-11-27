@@ -9,6 +9,7 @@ import { movedSinceLast, showsBadge, stateOf, type Sides } from "./state.ts"
 import { releasePlayback } from "./playback.ts"
 import {
   modelEntry,
+  reasoningOptions,
   reasoningStateLabel,
   reasoningSupport,
   type ReasoningModel,
@@ -104,7 +105,9 @@ export default {
 
     const reasoningLabel = (): ReasoningState => {
       const model = reasoningModel()
-      return reasoningStateLabel(reasoningOn(), model ? reasoningSupport(model) : "unsupported")
+      return reasoningStateLabel(
+        model ? reasoningOptions(model, reasoningOn()) : { state: "unsupported" },
+      )
     }
 
     const flipReasoning = () => {
@@ -118,6 +121,7 @@ export default {
         )
         return
       }
+      const decision = reasoningOptions(model, false)
       const enabled = !reasoningOn()
       const token = ++flipToken
       setReasoningOn(enabled)
@@ -126,7 +130,16 @@ export default {
           if (token !== flipToken) return
           const stored = enabledOf(answer) ?? enabled
           setReasoningOn(stored)
-          tell(`Reasoning in side answers is ${stored ? "on" : "off"}.`, "info", "/btw", 2000)
+          tell(
+            stored
+              ? "Reasoning in side answers is on."
+              : decision.state === "reduced"
+                ? `Reasoning in side answers is ${decision.level}.`
+                : "Reasoning in side answers is off.",
+            "info",
+            "/btw",
+            2000,
+          )
         })
         .catch((error) => {
           if (token !== flipToken) return
@@ -281,7 +294,7 @@ export default {
               id: "session.aside.reasoning",
               title: "Toggle reasoning in side answers",
               description:
-                "Send side questions without reasoning when the selected model allows it",
+                "Send side questions with the least reasoning the selected model allows",
               group: "Session",
               palette: true,
               run: () => {

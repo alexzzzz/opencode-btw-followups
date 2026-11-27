@@ -725,10 +725,18 @@ variant whose settings turn reasoning off is the host's own statement of how to 
 model: `reasoningEffort: "none"`, `thinking: { type: "disabled" }`, `thinkingConfig` with a zero
 budget, `reasoning: { enabled: false }` or `enableThinking: false`. When such a variant exists the
 side request carries that variant's settings, because a gateway model such as `hy4-flash-free` has
-an off variant while its protocol name alone would leave the table guessing. A model whose
-variants all reason, such as `deepseek-v4.1-flash-free` with `low`, `high` and `max` and no
-`none`, is unsupported whatever its provider. The table below answers only a model whose
-catalogue lists no variants.
+an off variant while its protocol name alone would leave the table guessing.
+
+A catalogue with no off variant can still name a cheaper reasoning level. The effort values are
+ordered `none`, `minimal`, `low`, `medium`, `high`, `xhigh` and `max`; a disabled thinking block
+and a zero thinking budget are off, and an explicit `includeThoughts: true` with a `thinkingLevel`
+is a reduced level, as `gemini-4-argon` lists. The cheapest level the catalogue lists wins even
+when a more expensive one comes first, and the whole variant's settings go out with the request so
+a field that variant needs is not dropped. DeepSeek V4.1 Flash Free lists `low`, `high` and `max`,
+so a side answer asks for `low`. A catalogue whose cheapest level is `high`, `xhigh` or `max` is
+unsupported: sending its default level back would change nothing the reader can see. The table
+below answers only a model whose catalogue lists no usable off or reduced level, so the catalogue
+names the level whenever it can.
 
 The fallback table is best effort and protocol based. Each row is the option the protocol schema
 in `@opencode/ai` declares, not a guess from the provider's name, and `test/reasoning.test.ts`
@@ -760,7 +768,9 @@ gateway serves another vendor's model under its own id. A Claude model reached t
 A model with no package falls back to its id, and an id that names no known family is
 unsupported.
 
-Some models stay unsupported on purpose. A Bedrock model that is not Claude has an effort list
+Some models stay unsupported on purpose. A catalogue whose cheapest level is `high`, `xhigh` or
+`max` has no cheaper answer to send, and a model with no usable reasoning variant is not helped by
+a guess from its name. In the fallback table, a Bedrock model that is not Claude has an effort list
 of `high`, `low`, `max`, `medium` and `xhigh` with no off value, and an o-series, base `gpt-5`,
 `gpt-oss`, `codex` or DeepSeek reasoner model reasons whatever the effort says, so the table
 returns unsupported instead of an option the provider would reject. A model id the table cannot
@@ -771,20 +781,25 @@ fails the whole request and costs the reader the answer, while an unsupported st
 wait, so nothing is sent that the protocol schema does not declare.
 
 The header reads `unsupported` whenever the selected model has no known control, whatever the
-setting is, so a reader sees before asking that the answer will still think. Only a supported
-model reads `on` or `off`, from the setting. The unsupported state reads `reasoning n/a`, which
-says that the request goes out unchanged.
+setting is, so a reader sees before asking that the answer will still think. A supported model
+reads `on` when the setting is on and `off` when the catalogue or the table can turn reasoning
+fully off. A reduced model reads `reasoning low`, `reasoning minimal` or `reasoning medium` from
+the level the request carries: the header names the real value because a label that says `off`
+while the answer still thinks has told the reader something false. The unsupported state reads
+`reasoning n/a`, which says that the request goes out unchanged.
 
 The cell and the palette action run the same toggle, and on an unsupported model that toggle
 reports why instead of changing the setting. A setting changed where it cannot take effect has no
 visible result, and a reader told that reasoning is off while the answer still thinks has been
-told something false, so the unsupported state is the whole answer for that model.
+told something false, so the unsupported state is the whole answer for that model. The toast after
+a reduced toggle names that level too, so the change is described with the value that was sent.
 
 The header fits the reasoning cell the way it fits every other cell, and the cell gives way
 early. With a count of `1 answered` and three rows above, the cells give way in this order: the
 count, the wording of the state, the state itself, the notice of what is above, the marker's
 full wording, the escape hint, the marker's number, and the title alone. The wording shortens
-from `reasoning on` to `reason on` to `on`, and `reasoning n/a` to `reason n/a` and then `n/a`.
+from `reasoning on` to `reason on` to `on`, from `reasoning low` to `reason low` to `low`, and
+from `reasoning n/a` to `reason n/a` and then `n/a`.
 The count goes first because the transcript already shows how much has been answered. The state
 gives way before the escape hint and the quick marker because the window is where both of those
 are named, and the state also has a handle in the command palette, so dropping the cell costs

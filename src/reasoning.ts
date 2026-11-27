@@ -13,12 +13,17 @@ export type ModelRef = {
 
 export type ReasoningSupport = "supported" | "unsupported"
 
-export type ReasoningState = "on" | "off" | "unsupported"
+export type ReasoningState = "on" | "off" | "unsupported" | { readonly level: string }
 
 export type ReasoningDecision =
   | { readonly state: "unchanged" }
   | { readonly state: "unsupported" }
   | { readonly state: "applied"; readonly options: Record<string, unknown> }
+  | {
+      readonly state: "reduced"
+      readonly options: Record<string, unknown>
+      readonly level: string
+    }
 
 type Family =
   | "anthropic"
@@ -52,6 +57,12 @@ const REASONING_MODELS: Partial<Record<Family, RegExp>> = {
 }
 
 const DISABLED_THINKING: Record<string, unknown> = { thinking: { type: "disabled" } }
+
+const EFFORT_LEVELS = ["none", "minimal", "low", "medium", "high", "xhigh", "max"] as const
+
+type EffortLevel = (typeof EFFORT_LEVELS)[number]
+
+const EXPENSIVE_LEVEL = EFFORT_LEVELS.indexOf("high")
 
 const FAMILY_HINTS: readonly { readonly family: Family; readonly words: readonly string[] }[] = [
   { family: "anthropic", words: ["anthropic", "claude"] },
@@ -126,19 +137,62 @@ const disablesReasoning = (settings: Record<string, unknown> | undefined): boole
 const offVariant = (model: ReasoningModel): Record<string, unknown> | undefined =>
   model.variants?.find((variant) => disablesReasoning(variant.settings))?.settings
 
+const levelOf = (value: unknown): EffortLevel | undefined => {
+  if (typeof value !== "string") return undefined
+  const level = value.toLowerCase() as EffortLevel
+  return (EFFORT_LEVELS as readonly string[]).includes(level) ? level : undefined
+}
+
+const settingsLevel = (settings: Record<string, unknown>): EffortLevel | undefined => {
+  const config = settings.thinkingConfig as
+    | { readonly includeThoughts?: unknown; readonly thinkingLevel?: unknown }
+    | undefined
+  const thinking = settings.thinking as { readonly effort?: unknown } | undefined
+  return (
+    levelOf(settings.reasoningEffort) ??
+    levelOf(settings.effort) ??
+    levelOf(thinking?.effort) ??
+    (config?.includeThoughts === true ? levelOf(config.thinkingLevel) : undefined)
+  )
+}
+
+const catalogueDecision = (model: ReasoningModel): ReasoningDecision | undefined => {
+  let chosen: { readonly settings: Record<string, unknown>; readonly level: EffortLevel } | undefined
+  for (const variant of model.variants ?? []) {
+    const settings = variant.settings
+    if (!settings) continue
+    const level = settingsLevel(settings)
+    if (level === undefined) continue
+    if (
+      chosen === undefined ||
+      EFFORT_LEVELS.indexOf(level) < EFFORT_LEVELS.indexOf(chosen.level)
+    ) {
+      chosen = { settings, level }
+    }
+  }
+  if (chosen === undefined) return undefined
+  if (chosen.level === "none") return { state: "applied", options: { ...chosen.settings } }
+  if (EFFORT_LEVELS.indexOf(chosen.level) >= EXPENSIVE_LEVEL) return { state: "unsupported" }
+  return { state: "reduced", options: { ...chosen.settings }, level: chosen.level }
+}
+
 export const reasoningOptions = (model: ReasoningModel, enabled: boolean): ReasoningDecision => {
   if (enabled) return { state: "unchanged" }
   if (model.compatibility?.requireReasoning === true) return { state: "unsupported" }
   const variant = offVariant(model)
   if (variant) return { state: "applied", options: { ...variant } }
+  const catalogue = catalogueDecision(model)
+  if (catalogue) return catalogue
   return decisionFor(familyOf(model), model)
 }
 
-export const reasoningSupport = (model: ReasoningModel): ReasoningSupport =>
-  reasoningOptions(model, false).state === "applied" ? "supported" : "unsupported"
+export const reasoningSupport = (model: ReasoningModel): ReasoningSupport => {
+  const state = reasoningOptions(model, false).state
+  return state === "applied" || state === "reduced" ? "supported" : "unsupported"
+}
 
-export const reasoningStateLabel = (
-  enabled: boolean,
-  support: ReasoningSupport,
-): ReasoningState =>
-  support === "unsupported" ? "unsupported" : enabled ? "on" : "off"
+export const reasoningStateLabel = (decision: ReasoningDecision): ReasoningState => {
+  if (decision.state === "unsupported") return "unsupported"
+  if (decision.state === "reduced") return { level: decision.level }
+  return decision.state === "unchanged" ? "on" : "off"
+}

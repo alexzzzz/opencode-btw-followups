@@ -71,11 +71,11 @@ If an answer is empty or a request throws an error, the queue pauses. The failed
 
 ### Reasoning in side answers
 
-The header shows whether side answers reason. It reads `reasoning on` at first, and clicking it turns reasoning off for side questions. The command palette has the same action as "Toggle reasoning in side answers". There is no keyboard shortcut for it.
+The header shows how much side answers reason. It reads `reasoning on` at first, and clicking it asks for the least reasoning the model offers. When the model can turn reasoning off, the label reads `reasoning off`. When it cannot, but has a cheaper level such as `low` or `minimal`, the label names that level instead. The command palette has the same action as "Toggle reasoning in side answers". There is no keyboard shortcut for it.
 
 The setting applies to the next question you ask, including one already waiting in the queue. A request that has already gone out keeps the setting it was sent with. It belongs to the plugin rather than to a session, so every window shows the same value, and it survives closing the window and restarting OpenCode.
 
-Side questions still use your session's model, and your main conversation keeps its own reasoning setting either way. Turning the toggle off asks the provider to skip reasoning, when that provider has a way to do it. Some models cannot skip it, and for those the label reads `reasoning n/a` whatever the toggle says. Clicking it says that the model has no known way to turn reasoning off and leaves the setting alone. The question is still asked, and the answer may still think.
+Side questions still use your session's model, and your main conversation keeps its own reasoning setting either way. Turning the toggle off asks the provider to skip reasoning when it can, or to use its cheapest cheaper level when it cannot skip reasoning completely. The level comes from the model's own catalogue, and the toast names the level the request will use. Some models offer nothing cheaper than `high`; for those the label reads `reasoning n/a` whatever the toggle says, and clicking it says the model has no useful reasoning level and leaves the setting alone. The question is still asked, and the answer may still think.
 
 ## Things to keep in mind
 
