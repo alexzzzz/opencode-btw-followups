@@ -263,7 +263,6 @@ function Turn(props: {
                 content={props.answer!()}
                 conceal
                 streaming
-                internalBlockMode="top-level"
                 tableOptions={{ style: "grid", cellPaddingX: 1 }}
                 ref={(element) => {
                   blocks = element
