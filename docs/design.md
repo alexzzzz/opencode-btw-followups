@@ -704,6 +704,14 @@ current blocks through `answerToken`, and exposes the same block-state adapter t
 reads. The built package therefore keeps the older renderer path for the minimum host and the
 current renderer path for new hosts.
 
+On modern hosts, `MarkdownRenderable.blocks` is an array of `{ kind, renderable }` values in
+document order. The array position is the block index used by `renderBlock`, so the adapter filters
+its tracked token and renderable pairs by position. Each release-smoke consumer also runs
+`test/fixtures/markdown-pointer.ts` with its installed OpenTUI. The probe renders a completed answer
+through `Turn`, moves the pointer over a block and clicks it. It requires both the pointer rail and
+the copied block text, which checks the legacy and modern renderer paths against their actual host
+versions.
+
 ## Install notes
 
 The evidence behind the checkout instructions in `README.md`.

@@ -8,8 +8,9 @@ dialog that keeps a thread.
 Run `bun run check` before you call a change done. It typechecks, then runs the tests, then
 builds the package the npm release ships, in that order. `bun test` runs the tests alone. The
 fixed long-thread benchmark is `bun scripts/benchmark-playback.ts`, and its measured result lives
-in `docs/design.md`. The TUI half has no behavioural test, so a change to the dialog, the command
-or the queue also needs one pass by hand in a terminal.
+in `docs/design.md`. The TUI half has only the markdown pointer probe described in
+`docs/design.md`, so a change to the dialog, the command or the queue also needs one pass by hand in
+a terminal.
 
 Run `bun run release:smoke` before a release. It starts with `bun run check`, then packs a clean
 source archive, installs it against the minimum and current host sets, imports both entrypoints,

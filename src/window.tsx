@@ -14,6 +14,7 @@ import {
   type BoxRenderable,
   type ColorInput,
   type KeyEvent,
+  type MarkdownBlock,
   MarkdownRenderable,
   type MouseEvent,
   type RenderNodeContext,
@@ -25,6 +26,7 @@ import type { Plugin } from "@opencode/plugin/tui"
 import { usePlugin } from "@opencode/plugin/tui"
 import {
   bindings,
+  retryQuestion,
   type Binding,
   type Hint,
   type InteractionMode,
@@ -49,7 +51,6 @@ import {
   emptyPointer,
   pointerAt,
   samePointer,
-  type AnswerBlock,
   type AnswerPointer,
   type AnswerToken,
   type PointerSurface,
@@ -66,10 +67,6 @@ import { createAnswerPlayback, type Timer } from "./playback.ts"
 import { gapBelow, type Failure, type Reading, type SideState } from "./state.ts"
 
 type Theme = Plugin.Context["theme"]
-
-type MarkdownBlock = AnswerBlock & { readonly index: number }
-
-type MarkdownOwner = MarkdownRenderable & { readonly blocks?: readonly MarkdownBlock[] }
 
 const BOLD = createTextAttributes({ bold: true })
 
@@ -186,7 +183,7 @@ export function Badge(props: {
   )
 }
 
-function Turn(props: {
+export function Turn(props: {
   readonly question: string
   readonly answer?: () => string
   readonly waiting?: boolean
@@ -201,7 +198,7 @@ function Turn(props: {
   const accent = () => props.theme.hue.interactive[200]
   const muted = () => props.theme.text.muted
 
-  let blocks: MarkdownOwner | undefined
+  let blocks: MarkdownRenderable | undefined
   let answer: BoxRenderable | undefined
   const states = new Map<number, { token: AnswerToken; renderable: unknown }>()
   const [pointer, setPointer] = createSignal<AnswerPointer>(emptyPointer, { equals: samePointer })
@@ -235,7 +232,7 @@ function Turn(props: {
   }
 
   const currentStates = () => {
-    const current = new Set(blocks?.blocks?.map((block) => block.index))
+    const current = new Set(blocks?.blocks.map((_block, index) => index))
     return [...states]
       .filter(([index]) => current.has(index))
       .sort(([left], [right]) => left - right)
@@ -775,7 +772,7 @@ export function ThreadDialog(props: {
     waiting: props.state().active !== undefined,
     typed: typed(),
     listed: listed(),
-    canClear: props.state().turns.length > 0,
+    hasTurns: props.state().turns.length > 0,
     canRetry: props.state().paused && props.state().failure?.question !== undefined,
     canJump: readingView().above > 0 || readingView().below > 0,
   })
@@ -787,7 +784,7 @@ export function ThreadDialog(props: {
   }
 
   const retryFailed = () => {
-    if (selecting() || !props.state().failure?.question) return
+    if (selecting() || !props.state().failure?.question || !retryQuestion(mode())) return
     clearing.disarm()
     setBrowse(NOT_BROWSING)
     setListed(false)
@@ -1015,7 +1012,7 @@ export function ThreadDialog(props: {
                     {`Asked: ${failure().question}`}
                   </text>
                 </Show>
-                <Show when={props.state().paused && failure().question}>
+                <Show when={retryQuestion(mode()) && failure().question}>
                   <Clickable
                     base={accent}
                     muted={error}

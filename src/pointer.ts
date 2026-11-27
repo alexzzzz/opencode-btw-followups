@@ -36,14 +36,7 @@ export const answerToken = (block: AnswerBlock): AnswerToken => {
     case "item":
       return { type: "list_item", raw: block.raw, text: block.text, tokens: children }
     case "table": {
-      const rows = block.children.map((row) =>
-        row.children.map((cell) => ({
-          type: "text",
-          raw: cell.raw,
-          text: cell.text,
-          tokens: cell.children.map(answerToken),
-        })),
-      )
+      const rows = block.children.map((row) => row.children.map(answerToken))
       const [header, ...body] = rows
       return {
         type: "table",

@@ -10,7 +10,7 @@ export type InteractionMode = {
   readonly waiting: boolean
   readonly typed: boolean
   readonly listed: boolean
-  readonly canClear: boolean
+  readonly hasTurns: boolean
   readonly canRetry: boolean
   readonly canJump: boolean
 }
@@ -21,6 +21,8 @@ export const footerMode = (mode: InteractionMode): FooterMode => {
   if (mode.waiting) return mode.typed ? "waiting-typed" : "waiting"
   return mode.typed ? "idle-typed" : "idle"
 }
+
+export const retryQuestion = (mode: InteractionMode): boolean => mode.canRetry && !mode.typed
 
 export type ListEffect = "open" | "close" | "close-window"
 
@@ -161,7 +163,7 @@ const GROUPS: readonly Group[] = [
     hint: {
       id: "clear",
       rest: " clear thread",
-      live: (mode) => mode.canClear && !mode.waiting && !mode.listed && !mode.typed,
+      live: (mode) => mode.hasTurns && !mode.waiting && !mode.listed && !mode.typed,
     },
   },
   {
@@ -171,13 +173,13 @@ const GROUPS: readonly Group[] = [
         bind: "enter",
         title: "Retry the failed question",
         intent: "retry",
-        enabled: (mode) => mode.canRetry && !mode.waiting && !mode.listed && !mode.typed,
+        enabled: (mode) => retryQuestion(mode) && !mode.waiting && !mode.listed,
       },
     ],
     hint: {
       id: "retry",
       rest: " retry",
-      live: (mode) => mode.canRetry && !mode.waiting && !mode.listed && !mode.typed,
+      live: (mode) => retryQuestion(mode) && !mode.waiting && !mode.listed,
     },
   },
   {
@@ -187,11 +189,11 @@ const GROUPS: readonly Group[] = [
         bind: THREAD_COPY_BIND,
         title: "Copy the whole side thread",
         intent: "copy_thread",
-        enabled: (mode) => mode.canClear,
+        enabled: (mode) => mode.hasTurns,
         palette: true,
       },
     ],
-    hint: { id: "copy", rest: " copy thread", live: (mode) => mode.canClear },
+    hint: { id: "copy", rest: " copy thread", live: (mode) => mode.hasTurns },
   },
   {
     keys: [

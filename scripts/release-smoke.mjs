@@ -58,9 +58,9 @@ function run(command, args, settings = {}) {
   return result.stdout ?? ""
 }
 
-async function sourceArchive(destination) {
-  const result = spawnSync("git", ["ls-files", "-z", "--cached", "--others", "--exclude-standard"], {
-    cwd: root,
+export async function sourceArchive(destination, source = root) {
+  const result = spawnSync("git", ["ls-files", "-z", "--cached"], {
+    cwd: source,
     encoding: "buffer",
   })
   if (result.error) throw result.error
@@ -69,7 +69,7 @@ async function sourceArchive(destination) {
   for (const name of names) {
     const target = join(destination, name)
     await mkdir(dirname(target), { recursive: true })
-    await cp(join(root, name), target, { recursive: true, force: true })
+    await cp(join(source, name), target, { recursive: true, force: true })
   }
   if (existsSync(join(destination, "dist"))) throw new Error("The clean source archive contains dist/")
 }
@@ -129,6 +129,14 @@ async function consumer(destination, tarball, host) {
   run("bun", ["run", "import.mjs"], { cwd: destination })
 }
 
+async function answerPointer(source, destination) {
+  await cp(join(source, "src"), join(destination, "src"), { recursive: true, force: true })
+  const fixture = join("test", "fixtures", "markdown-pointer.ts")
+  await mkdir(dirname(join(destination, fixture)), { recursive: true })
+  await cp(join(source, fixture), join(destination, fixture))
+  run("bun", ["--preload", "@opentui/solid/preload", fixture], { cwd: destination })
+}
+
 function hostEnvironment(destination, host) {
   const env = {
     ...process.env,
@@ -179,6 +187,7 @@ async function smoke() {
       const destination = join(temporary, host.name)
       console.log(`\nChecking ${host.name}: OpenCode ${host.opencode}, OpenTUI ${host.core}, Solid ${host.solid}`)
       await consumer(destination, tarball, host)
+      await answerPointer(source, destination)
       const env = hostEnvironment(destination, host)
       await mkdir(env.HOME, { recursive: true })
 

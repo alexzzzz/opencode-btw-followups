@@ -4,6 +4,7 @@ import {
   footerMode,
   hints,
   opensFromSession,
+  retryQuestion,
   SESSION_OPEN_BIND,
   THREAD_COPY_BIND,
   type InteractionMode,
@@ -22,7 +23,7 @@ const mode = (over: Partial<InteractionMode> = {}): InteractionMode => ({
   waiting: false,
   typed: false,
   listed: false,
-  canClear: true,
+  hasTurns: true,
   canRetry: false,
   canJump: true,
   ...over,
@@ -101,6 +102,12 @@ describe("the key table", () => {
     expect(retry(mode({ canRetry: true, listed: true }))?.enabled()).toBe(false)
   })
 
+  test("the retry question label is available only for a paused failure and an empty composer", () => {
+    expect(retryQuestion(mode({ canRetry: true }))).toBe(true)
+    expect(retryQuestion(mode())).toBe(false)
+    expect(retryQuestion(mode({ canRetry: true, typed: true }))).toBe(false)
+  })
+
   test("whole-thread copy has a keyboard bind and a palette action when a thread exists", () => {
     expect(THREAD_COPY_BIND).toBe("ctrl+shift+c")
     const copy = bindings(() => mode()).find((binding) => binding.intent === "copy_thread")
@@ -112,7 +119,7 @@ describe("the key table", () => {
     })
     expect(copy?.enabled()).toBe(true)
     expect(
-      bindings(() => mode({ canClear: false })).find((binding) => binding.intent === "copy_thread")
+      bindings(() => mode({ hasTurns: false })).find((binding) => binding.intent === "copy_thread")
         ?.enabled(),
     ).toBe(false)
   })
@@ -233,7 +240,7 @@ describe("the hint table", () => {
       THREAD_COPY_BIND,
     ])
     expect(hints(IDLE_TYPED, 200).map(([key]) => key)).toEqual(["ctrl+home/end", THREAD_COPY_BIND])
-    expect(hints(mode({ canClear: false }), 200).some(([key]) => key === THREAD_COPY_BIND)).toBe(false)
+    expect(hints(mode({ hasTurns: false }), 200).some(([key]) => key === THREAD_COPY_BIND)).toBe(false)
   })
 })
 
@@ -255,7 +262,7 @@ describe("the hints of a mode", () => {
   })
 
   test("a thread with nothing in it drops the clear", () => {
-    expect(keyNames(mode({ canClear: false }))).toEqual(["ctrl+up/down", "ctrl+home/end"])
+    expect(keyNames(mode({ hasTurns: false }))).toEqual(["ctrl+up/down", "ctrl+home/end"])
   })
 
   test("a transcript that fits drops the jump, because there is nowhere to jump", () => {
@@ -295,7 +302,7 @@ describe("the hints of a mode", () => {
 
   test("the clear is named only over an idle thread with a turn in it", () => {
     expect(keyNames(IDLE)).toContain("delete")
-    expect(keyNames(mode({ canClear: false }))).not.toContain("delete")
+    expect(keyNames(mode({ hasTurns: false }))).not.toContain("delete")
     expect(keyNames(mode({ listed: true }))).not.toContain("delete")
   })
 
