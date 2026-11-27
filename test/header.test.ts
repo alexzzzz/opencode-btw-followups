@@ -6,6 +6,7 @@ import {
   HEADER_TITLE,
   headerRow,
   type HeaderRow,
+  type ReasoningState,
 } from "../src/header.ts"
 
 const rowWidth = (row: HeaderRow) =>
@@ -16,6 +17,7 @@ const rowWidth = (row: HeaderRow) =>
     if (cell === "count") return width + row.count.length
     if (cell === "marker") return width + row.marker.length
     if (cell === "above") return width + row.above.length
+    if (cell === "reasoning") return width + row.reasoning.length
     if (cell === "close") return width + CLOSE_LABEL.length
     return width
   }, 0)
@@ -25,9 +27,38 @@ const shown = (row: HeaderRow) => row.cells.filter((cell) => cell !== "spacer")
 describe("headerRow", () => {
   test("a wide panel names the count, the prompts, what is above and the escape", () => {
     const row = headerRow(88, "1 answered", 3, 6, false)
-    expect(shown(row)).toEqual(["count", "marker", "above", "close"])
+    expect(shown(row)).toEqual(["count", "reasoning", "marker", "above", "close"])
     expect(row.marker).toBe("▸ 6 quick prompts")
     expect(row.above).toBe("↑ 3 above")
+  })
+
+  test("the reasoning state reads in words on a wide panel", () => {
+    expect(headerRow(88, "1 answered", 3, 6, false, "on").reasoning).toBe("reasoning on")
+    expect(headerRow(88, "1 answered", 3, 6, false, "off").reasoning).toBe("reasoning off")
+    expect(headerRow(88, "1 answered", 3, 6, false, "unsupported").reasoning).toBe("reasoning n/a")
+  })
+
+  test("a narrow panel shortens the reasoning cell before it drops it", () => {
+    const row = headerRow(68, "1 answered", 3, 6, false, "off")
+    expect(shown(row)).toEqual(["reasoning", "marker", "above", "close"])
+    expect(row.reasoning).toBe("reason off")
+  })
+
+  test("an even narrower panel keeps the shortest reasoning label", () => {
+    expect(headerRow(60, "1 answered", 3, 6, false, "on").reasoning).toBe("on")
+    expect(headerRow(61, "1 answered", 3, 6, false, "unsupported").reasoning).toBe("n/a")
+  })
+
+  test("the reasoning cell drops before the escape, the notice or the marker", () => {
+    const row = headerRow(54, "1 answered", 3, 6, false, "on")
+    expect(shown(row)).toEqual(["marker", "above", "close"])
+    expect(row.marker).toBe("▸ 6 quick prompts")
+  })
+
+  test("the reasoning cell is gone before the marker shortens", () => {
+    const row = headerRow(43, "1 answered", 3, 6, false, "on")
+    expect(shown(row)).toEqual(["marker", "close"])
+    expect(row.marker).toBe("▸ 6 quick prompts")
   })
 
   test("a phone-width panel drops the count rather than wrap it", () => {
@@ -37,7 +68,7 @@ describe("headerRow", () => {
   })
 
   test("nothing said yet leaves no empty count cell behind", () => {
-    expect(shown(headerRow(88, "", 0, 6, false))).toEqual(["marker", "close"])
+    expect(shown(headerRow(88, "", 0, 6, false))).toEqual(["reasoning", "marker", "close"])
   })
 
   test("nothing above is no notice, whatever the width", () => {
@@ -64,11 +95,14 @@ describe("headerRow", () => {
   })
 
   test("the row a panel gets never needs more cells than the panel has", () => {
+    const states: readonly ReasoningState[] = ["on", "off", "unsupported"]
     for (let width = 11; width <= 140; width += 1) {
       for (const count of ["", "1 answered", "3 answered, 2 waiting"]) {
         for (const aboveRows of [0, 3, 120]) {
-          const row = headerRow(width, count, aboveRows, 6, false)
-          expect(rowWidth(row)).toBeLessThanOrEqual(width)
+          for (const reasoning of states) {
+            const row = headerRow(width, count, aboveRows, 6, false, reasoning)
+            expect(rowWidth(row)).toBeLessThanOrEqual(width)
+          }
         }
       }
     }
