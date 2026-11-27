@@ -7,6 +7,9 @@ import { createSyntaxStyle } from "./syntax.ts"
 import { panelHeights } from "./layout.ts"
 import { movedSinceLast, showsBadge, stateOf, type Sides } from "./state.ts"
 import { releasePlayback } from "./playback.ts"
+import { reasoningSupport } from "./reasoning.ts"
+import type { ReasoningState } from "./header.ts"
+import contract from "./contract.ts"
 import { Badge, ThreadDialog } from "./window.tsx"
 
 const ID = "btw-followups.tui"
@@ -18,13 +21,20 @@ type Resizable = {
 
 type ToastVariant = Notice["variant"]
 
+const errorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error))
+
+const enabledOf = (answer: unknown) => (answer as { enabled: boolean }).enabled
+
 export default {
   id: ID,
   setup(context: Plugin.Context) {
     const [sides, setSides] = createSignal<Sides>(new Map())
     const [windowSession, setWindowSession] = createSignal<string | undefined>(undefined)
     const [rows, setRows] = createSignal(context.renderer.terminalHeight)
+    const [reasoningOn, setReasoningOn] = createSignal(true)
     const syntax = createSyntaxStyle(context.theme, (context.renderer as any).nativeScene)
+    const reasoningRpc = context.client.rpc(contract)
+    let reasoningWrite: Promise<unknown> | undefined
 
     const view = (sessionID: string) => stateOf(sides(), sessionID)
 
@@ -46,6 +56,40 @@ export default {
           ...(duration === undefined ? {} : { duration }),
         })
       } catch {}
+    }
+
+    void reasoningRpc
+      .get({})
+      .then((answer) => setReasoningOn(enabledOf(answer)))
+      .catch(() => {})
+
+    const reasoningState = (): ReasoningState => {
+      if (reasoningOn()) return "on"
+      const model = context.ui.model.current()
+      if (!model) return "unsupported"
+      return reasoningSupport(model) === "supported" ? "off" : "unsupported"
+    }
+
+    const flipReasoning = () => {
+      const enabled = !reasoningOn()
+      setReasoningOn(enabled)
+      const write = reasoningRpc.set({ enabled })
+      reasoningWrite = write
+      void write
+        .then((answer) => {
+          if (reasoningWrite !== write) return
+          const stored = enabledOf(answer)
+          setReasoningOn(stored)
+          tell(`Reasoning in side answers is ${stored ? "on" : "off"}.`, "info", "/btw", 2000)
+        })
+        .catch((error) => {
+          if (reasoningWrite !== write) return
+          setReasoningOn(!enabled)
+          tell(errorMessage(error), "error")
+        })
+        .finally(() => {
+          if (reasoningWrite === write) reasoningWrite = undefined
+        })
     }
 
     let lowering = false
@@ -93,9 +137,12 @@ export default {
     }
 
     const thread: SessionThread = createSessionThread({
-      generate(sessionID, prompt, signal) {
+      async generate(sessionID, prompt, signal) {
+        const write = reasoningWrite
+        if (write) await write.catch(() => {})
         return context.client.session.generate({ sessionID, prompt }, { signal })
       },
+      reasoning: () => reasoningOn(),
       onDeleted(handler) {
         return context.data.on("session.deleted", (event) => {
           if (windowSession() === event.data.sessionID) lowerWindow()
@@ -138,6 +185,8 @@ export default {
             state={() => view(sessionID)}
             syntax={syntax}
             rows={() => rows()}
+            reasoning={reasoningState}
+            onReasoning={flipReasoning}
             sessionMoved={() => movedSinceLast(view(sessionID).turns, spoken(sessionID))}
             remember={(draft, place) => thread.remember(sessionID, draft, place)}
             ask={(question) => thread.ask(sessionID, question)}
@@ -181,6 +230,21 @@ export default {
               run: (input) => {
                 try {
                   openSession(routeSession(), input?.trim())
+                } catch (error) {
+                  thread.crash(routeSession(), error)
+                }
+              },
+            },
+            {
+              id: "session.aside.reasoning",
+              title: "Toggle reasoning in side answers",
+              description:
+                "Send side questions without reasoning when the selected model allows it",
+              group: "Session",
+              palette: true,
+              run: () => {
+                try {
+                  flipReasoning()
                 } catch (error) {
                   thread.crash(routeSession(), error)
                 }

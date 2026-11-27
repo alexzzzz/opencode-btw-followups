@@ -25,11 +25,13 @@ const flush = async () => {
   for (let i = 0; i < 12; i++) await Promise.resolve()
 }
 
+type Call = GenerateCall & { readonly reasoning: boolean }
+
 type Harness = {
   readonly thread: SessionThread
   readonly view: (sessionID: string) => SideState
   readonly published: () => Sides
-  readonly calls: () => readonly GenerateCall[]
+  readonly calls: () => readonly Call[]
   readonly notices: () => readonly Notice[]
   readonly raised: () => readonly string[]
   readonly released: () => readonly string[]
@@ -39,13 +41,14 @@ type Harness = {
   readonly setCurrent: (sessionID: string | undefined) => void
   readonly setWindow: (sessionID: string | undefined) => void
   readonly setSpoken: (count: number) => void
+  readonly setReasoning: (value: boolean) => void
   readonly unsubscribed: () => boolean
 }
 
 const harness = (): Harness => {
   let published: Sides = new Map()
   const waiting: Deferred<{ text: string }>[] = []
-  const calls: GenerateCall[] = []
+  const calls: Call[] = []
   const notices: Notice[] = []
   const raised: string[] = []
   const released: string[] = []
@@ -54,14 +57,16 @@ const harness = (): Harness => {
   let currentID: string | undefined
   let windowID: string | undefined
   let spokenCount = 0
+  let reasoningOn = true
 
   const thread = createSessionThread({
-    generate(sessionID, prompt, signal) {
-      calls.push({ sessionID, prompt, signal })
+    generate(sessionID, prompt, signal, reasoning) {
+      calls.push({ sessionID, prompt, signal, reasoning })
       const call = deferred<{ text: string }>()
       waiting.push(call)
       return call.promise
     },
+    reasoning: () => reasoningOn,
     onDeleted(handler) {
       deleted = handler
       return () => {
@@ -118,6 +123,9 @@ const harness = (): Harness => {
     },
     setSpoken: (count) => {
       spokenCount = count
+    },
+    setReasoning: (value) => {
+      reasoningOn = value
     },
     unsubscribed: () => stopped,
   }
@@ -180,6 +188,70 @@ describe("one request in flight, in order", () => {
     h.thread.ask(a, "counted")
     await h.answer("counted answer")
     expect(h.view(a).turns[0]?.spokenAt).toBe(7)
+  })
+})
+
+describe("the reasoning setting at send time", () => {
+  test("the first question carries the value the accessor held when it was sent", async () => {
+    const h = harness()
+    h.setReasoning(false)
+    h.thread.ask(a, "one")
+
+    expect(h.calls()[0]?.reasoning).toBe(false)
+    await h.answer("answer one")
+  })
+
+  test("a queued question carries the value current when its own send starts", async () => {
+    const h = harness()
+    h.thread.ask(a, "one")
+    h.thread.ask(a, "two")
+    expect(h.calls()[0]?.reasoning).toBe(true)
+
+    h.setReasoning(false)
+    await h.answer("answer one")
+
+    expect(h.calls()).toHaveLength(2)
+    expect(h.calls()[1]?.reasoning).toBe(false)
+    await h.answer("answer two")
+  })
+
+  test("a request already in flight keeps the value it was sent with", async () => {
+    const h = harness()
+    h.thread.ask(a, "one")
+    h.setReasoning(false)
+
+    expect(h.calls()[0]?.reasoning).toBe(true)
+    await h.answer("answer one")
+    expect(h.calls()[0]?.reasoning).toBe(true)
+  })
+
+  test("a batch of questions asked together carries one value", async () => {
+    const h = harness()
+    h.thread.ask(a, "first")
+    h.thread.ask(a, "second")
+    await h.reject(new Error("model went away"))
+    h.setReasoning(false)
+
+    h.thread.ask(a, "third")
+
+    expect(h.calls()).toHaveLength(2)
+    expect(h.calls()[1]?.reasoning).toBe(false)
+    expect(h.view(a).active).toBe("first\nsecond\nthird")
+    await h.answer("batched answer")
+    expect(h.calls()).toHaveLength(2)
+  })
+
+  test("a retry carries the value current at the retry", async () => {
+    const h = harness()
+    h.thread.ask(a, "first")
+    await h.answer("")
+    h.setReasoning(false)
+
+    h.thread.retry(a)
+
+    expect(h.calls()).toHaveLength(2)
+    expect(h.calls()[1]?.reasoning).toBe(false)
+    await h.answer("retried answer")
   })
 })
 
