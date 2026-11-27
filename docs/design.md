@@ -666,10 +666,9 @@ does not clip, it wraps: a phone gave the dialog about forty-four cells and the 
 as `bt` above `w`, with the count wrapped between them and `esc close` cut to `esc clo`.
 
 `src/header.ts` builds the row as a list of cells, spacers included, so the width it measures is
-the width the row draws, and it takes the first list that fits. The count goes first, then the
-notice of what is above, then the escape hint; the quick marker shortens to `▸ 6 prompts` and
-then `▸ 6` only after the escape hint is gone. A panel of forty-four cells keeps the title, the
-full marker and the escape hint in forty-one cells.
+the width the row draws, and it takes the first list that fits. A panel of forty-four cells
+keeps the title, the full marker and the escape hint in forty-one cells. The order in which the
+cells give way is under "Reasoning in a side answer", beside the reasoning cell that joins them.
 
 The header names the model that will answer, read from the session the window belongs to,
 because `session.generate` is answered by that session's model and the prompt's own selection
@@ -686,6 +685,153 @@ A toast the host refuses is swallowed. Every path that shows one has either writ
 into the session's state or has nothing else to say it with, and a throw from a click handler
 would replace the message the reader needed with one they cannot act on.
 
+## Reasoning in a side answer
+
+The header carries one cell that says whether side questions are sent with reasoning, and a
+click on it flips the setting. `src/reasoning.ts` decides what a request carries,
+`src/contract.ts` carries the value between the two halves, and `src/index.ts` applies it.
+
+The header asks about the same full model entry the server hook reads, resolved from the window's
+session: `data.session.get(sessionID)?.model` names the model and
+`data.location.model.list(location)` carries its package and compatibility. A model the
+catalogue does not know falls back to the session's compact ref, which has neither, so the header
+reports the unsupported state rather than guessing from the provider id alone.
+
+The setting lives on the server because the terminal half outlives nothing. A window closes, a
+terminal restarts, a reload rebuilds the terminal half with its signals at their defaults, and a
+value kept there would be lost at each of those points. The server half is set up once per host
+process, so it holds the value while the host runs, and `context.storage` keeps it under
+`btw-followups.reasoning` for the next start. The value is global rather than per session
+because it is a choice about what a side answer may cost, and a reader who made that choice
+does not want it back on in the next session. A missing or malformed stored value reads as on,
+which is what the plugin did before the toggle existed.
+
+The two halves meet at `src/contract.ts`, a third package export that both import. Its `get`
+takes an empty object and its `set` takes `{ enabled: boolean }`, and both shapes set
+`additionalProperties: false`, so a field added on one side fails the typecheck on the other
+instead of drifting. The release smoke imports every entrypoint, so a package that loses the
+contract fails before publish rather than at the first toggle.
+
+The hook reads the marker. `MARKER` in `src/prompt.ts` is the first sentence of every side
+question, `isSideQuestion` tests it with `startsWith`, and the server hook checks the last user
+message's text part before it touches anything. Reading the marker is the identification the
+window already relies on, so no protocol field and no hidden token is needed. The prompt stays
+byte for byte what the model saw before the toggle, and a transient generation call from another
+plugin, which carries no marker, is left alone. The hook returns at once while the setting is
+on, so a reader who never touches it sends exactly the request the plugin sent before.
+
+The model's own catalogue entry decides first. A model the host lists carries variants, and a
+variant whose settings turn reasoning off is the host's own statement of how to do it for that
+model: `reasoningEffort: "none"`, `thinking: { type: "disabled" }`, `thinkingConfig` with a zero
+budget, `reasoning: { enabled: false }` or `enableThinking: false`. When such a variant exists the
+side request carries that variant's settings, because a gateway model such as `hy4-flash-free` has
+an off variant while its protocol name alone would leave the table guessing.
+
+A catalogue with no off variant can still name a cheaper reasoning level. The effort values are
+ordered `none`, `minimal`, `low`, `medium`, `high`, `xhigh` and `max`; a disabled thinking block
+and a zero thinking budget are off, and an explicit `includeThoughts: true` with a `thinkingLevel`
+is a reduced level, as `gemini-4-argon` lists. The cheapest level the catalogue lists wins even
+when a more expensive one comes first, and the whole variant's settings go out with the request so
+a field that variant needs is not dropped. DeepSeek V4.1 Flash Free lists `low`, `high` and `max`,
+so a side answer asks for `low`. A catalogue whose cheapest level is `high`, `xhigh` or `max` is
+unsupported: sending its default level back would change nothing the reader can see. The table
+below answers only a model whose catalogue lists no usable off or reduced level, so the catalogue
+names the level whenever it can.
+
+The fallback table is best effort and protocol based. Each row is the option the protocol schema
+in `@opencode/ai` declares, not a guess from the provider's name, and `test/reasoning.test.ts`
+holds the rows:
+
+- Anthropic and Anthropic-compatible endpoints send `thinking: { type: "disabled" }`. The
+  `anthropic-messages` protocol declares `"disabled"` in the thinking type union, and an
+  endpoint that speaks that protocol accepts the same field.
+- OpenAI, Azure, xAI, Mistral and Copilot models send `reasoningEffort: "none"`, but only for
+  a model id the table knows to reason and to accept that value: `gpt-5.1`, `magistral`,
+  `mistral-large` and `grok-3`/`grok-4` today. The effort enum in those protocols carries
+  `"none"`, which is the documented value for an answer with no reasoning, and a model without
+  reasoning such as `gpt-4o` rejects the field, so it is unsupported instead.
+- Gemini models send `thinkingConfig: { thinkingBudget: 0, includeThoughts: false }`. A zero
+  budget is the off value the protocol documents for the models that accept one, and
+  `includeThoughts` false keeps thought text out of the reply. The budget arrives with Gemini 2.5,
+  so an older id is unsupported.
+- Cohere and Z.ai models send `thinking: { type: "disabled" }`, the value `cohere-chat` and
+  `zai-chat` both declare, and only a model that has the field: `command-a` and GLM 4.5 or later.
+- Alibaba models send `enableThinking: false`, the boolean `alibaba-chat` declares, and only a
+  Qwen 3 model carries it.
+- Venice models send `reasoning: { enabled: false }`, the flag in `venice-chat`.
+- Bedrock sends `thinking: { type: "disabled" }` for a Claude model that has a thinking block,
+  because `bedrock-converse` says that value applies to Claude models alone.
+
+The family comes from the model's package first and from the provider id second, because a
+gateway serves another vendor's model under its own id. A Claude model reached through the
+`opencode` provider is answered by the Anthropic protocol, and the package names that protocol.
+A model with no package falls back to its id, and an id that names no known family is
+unsupported.
+
+Some models stay unsupported on purpose. A catalogue whose cheapest level is `high`, `xhigh` or
+`max` has no cheaper answer to send, and a model with no usable reasoning variant is not helped by
+a guess from its name. In the fallback table, a Bedrock model that is not Claude has an effort list
+of `high`, `low`, `max`, `medium` and `xhigh` with no off value, and an o-series, base `gpt-5`,
+`gpt-oss`, `codex` or DeepSeek reasoner model reasons whatever the effort says, so the table
+returns unsupported instead of an option the provider would reject. A model id the table cannot
+place inside a known family is unsupported for the same reason: an option is sent only to a model
+the table can name. A model whose catalogue entry sets `requireReasoning` is unsupported for the
+same reason, because the field is required and cannot be turned off. An option a provider rejects
+fails the whole request and costs the reader the answer, while an unsupported state costs only the
+wait, so nothing is sent that the protocol schema does not declare.
+
+The header reads `unsupported` whenever the selected model has no known control, whatever the
+setting is, so a reader sees before asking that the answer will still think. A supported model
+reads `as is` when the setting is on and `off` when the catalogue or the table can turn reasoning
+fully off. A reduced model reads `reasoning low`, `reasoning minimal` or `reasoning medium` from
+the level the request carries: the header names the real value because a label that says `off`
+while the answer still thinks has told the reader something false. The unsupported state reads
+`reasoning n/a`, which says that the request goes out unchanged.
+
+The wording `as is` rather than `default` or `auto` is deliberate. The side request uses the
+session's model ref, variant included, so a session set to `high` sends `high` while the setting
+is on. `as is` says the plugin adds nothing; `default` would name a level the request may not use,
+and `auto` would name a decision the model may not be making.
+
+The cell and the palette action run the same toggle, and on an unsupported model that toggle
+reports why instead of changing the setting. A setting changed where it cannot take effect has no
+visible result, and a reader told that reasoning is off while the answer still thinks has been
+told something false, so the unsupported state is the whole answer for that model. The toast after
+a reduced toggle names that level too, so the change is described with the value that was sent.
+
+The header fits the reasoning cell the way it fits every other cell, and the cell gives way
+early. With a count of `1 answered` and three rows above, the cells give way in this order: the
+count, the wording of the state, the state itself, the notice of what is above, the marker's
+full wording, the escape hint, the marker's number, and the title alone. The wording shortens
+from `reasoning as is` to `reason as is` to `as is`, from `reasoning low` to `reason low` to `low`, and
+from `reasoning n/a` to `reason n/a` and then `n/a`.
+The count goes first because the transcript already shows how much has been answered. The state
+gives way before the escape hint and the quick marker because the window is where both of those
+are named, and the state also has a handle in the command palette, so dropping the cell costs
+the click and not the setting. A panel 68 cells wide keeps `reason off` and drops the count. At
+54 the state is gone and the escape, the notice and the full marker stay, and at 43 the marker
+still has its full wording beside the escape.
+
+The toggle is a mouse up on the cell, the click the host sends, and the palette action
+`session.aside.reasoning` flips the same value. No key is bound, because every key the window
+could take already means something to the composer or to the session, and a setting a reader
+changes once does not deserve one. The label is drawn only while the cell fits, so on a narrow
+panel the palette action is the way in.
+
+The adapter reads the value at send time. `sendNext` in `src/thread.ts` calls the `reasoning`
+accessor once per outgoing batch, after the pending questions are joined, so a question asked
+before a flip and sent after it goes out with the new value, and a batch asked together goes
+out with one value because it is one request. A retry goes through the same call, so it obeys
+the value current when it is retried. A request already in flight keeps the value it was sent
+with, because the server read the stored setting when the request arrived and applied the option
+to that request alone. The adapter passes the send-time value into `generate`, and the terminal
+awaits the write of exactly that value before it calls `session.generate`, skipping the write when
+the last completed one already carried it, so a click followed in the same tick by a send cannot
+let the server read the previous value.
+
+`src/reasoning.ts` carries no comment. Each row's reason is above, beside the protocol schema
+that declares the option, and a comment in the module would be a second copy of that fact.
+
 ## Host compatibility
 
 `scripts/release-smoke.mjs` holds the tested host sets. The minimum set is OpenCode and
@@ -694,7 +840,7 @@ would replace the message the reader needed with one they cannot act on.
 OpenTUI `>=0.5.12 <0.10.0`, and Solid `>=1.9.12 <2.0.0`.
 
 The release smoke installs the packed plugin into an empty project with each set, without peer
-dependency overrides. It imports both built entry points in a plain Bun process. The upper bounds
+dependency overrides. It imports every built entry point in a plain Bun process. The upper bounds
 keep untested OpenTUI 0.10 and Solid 2 changes out of the declared range. GitHub Actions runs the
 same check on Windows and Linux.
 
@@ -758,13 +904,13 @@ which it only does for a plugin it loads from a directory. Installed from npm th
 compiler, and the terminal half fails to load with a missing `react/jsx-dev-runtime`.
 
 `prepack` runs the build for both `npm pack` and `npm publish`. A source checkout with no `dist/`
-therefore cannot produce a package without the two entry points. `prepublishOnly` runs the full
+therefore cannot produce a package without the three entry points. `prepublishOnly` runs the full
 release smoke, so a failed package install, import, or deployment check stops publication.
 
 `bun run release:smoke` starts with `bun run check`. It copies only Git source files to a temporary
 directory, verifies that `dist/` is absent, installs the locked development dependencies, and packs
 there. It checks the tarball file list, installs the tarball into empty minimum and current host
-projects, and imports both public entry points with plain Bun. It also runs each host's
+projects, and imports every public entry point with plain Bun. It also runs each host's
 `opencode debug paths config` and exercises `deploy` and `deploy:check` in temporary XDG,
 home-default, and host-reported config directories. Every child process must exit successfully.
 The workflow in `.github/workflows/release.yml` runs the command on Windows and Linux.

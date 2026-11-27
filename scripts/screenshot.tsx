@@ -150,6 +150,8 @@ const setup = await testRender(
           state={state}
           syntax={syntax}
           rows={() => ROWS}
+          reasoning={() => "on"}
+          onReasoning={() => {}}
           sessionMoved={() => false}
           played={() => true}
           markPlayed={() => {}}

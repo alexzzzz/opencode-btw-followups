@@ -13,7 +13,7 @@ in `docs/design.md`. The TUI half has only the markdown pointer probe described 
 a terminal.
 
 Run `bun run release:smoke` before a release. It starts with `bun run check`, then packs a clean
-source archive, installs it against the minimum and current host sets, imports both entrypoints,
+source archive, installs it against the minimum and current host sets, imports every entrypoint,
 and checks deployment against the real host binaries. `npm publish` runs the same gate.
 
 The running TUI loads this plugin from `<config>/plugins/btw-followups` rather than from the
@@ -22,8 +22,8 @@ copy is behind. A change the copy does not hold is a change the window never sho
 
 ## Where things are
 
-- `src/index.ts` is the server entrypoint, and it registers nothing because the thread is a
-  terminal concern.
+- `src/index.ts` is the server entrypoint: it registers the reasoning setting and the transient
+  generation hook that applies it to a side question. The thread itself is a terminal concern.
 - `src/tui.tsx` is the terminal entrypoint: the command, the badge, the window's lifetime and
   the queue behind it.
 - `src/window.tsx` is the window itself: the dialog, the parts it is drawn from, and the
@@ -32,9 +32,10 @@ copy is behind. A change the copy does not hold is a change the window never sho
 - `src/syntax.ts` is the syntax style a fenced block in an answer is drawn with.
 - `src/pointer.ts` turns one top-level block of an answer into the text a click copies, and finds
   the block under the pointer for the rail beside it.
+- `src/contract.ts` is the RPC contract both halves import, and the third package export.
 - `src/prompt.ts`, `src/layout.ts`, `src/quick.ts`, `src/state.ts`, `src/footer.ts`,
-  `src/header.ts`, `src/interaction.ts`, `src/playback.ts` and `src/pointer.ts` are pure, and `test/`
-  covers them.
+  `src/header.ts`, `src/interaction.ts`, `src/playback.ts`, `src/reasoning.ts` and `src/pointer.ts`
+  are pure, and `test/` covers them.
 - `README.md` is what a user reads.
 - `scripts/config-dir.mjs` resolves the config directory reported by `opencode debug paths config`.
   Deployment and the documented examples use that answer.
@@ -187,9 +188,9 @@ copies drift.
   host's textarea reports typing alone and a recall, the draft put back at mount and the submit
   that empties the field all write it without a word.
 - Fit the header the same way, because a row wider than the panel wraps mid-word rather than
-  clipping. The count goes first, then the notice of what is above, then the escape hint, and
-  the quick marker shortens to `▸ 6 prompts` and then `▸ 6`. `src/header.ts` owns that
-  fitting, and `test/header.test.ts` holds it in place.
+  clipping. The count goes first, then the reasoning state, and `docs/design.md` holds the
+  measured order in which the remaining cells give way. `src/header.ts` owns that fitting, and
+  `test/header.test.ts` holds it in place.
 - Keep the quick prompts behind one marker in the header of the window, and let the list
   of them float over the transcript rather than take rows from it, so nothing inside the
   window moves when it opens and the reading position stays where it was. While the list is
@@ -286,6 +287,14 @@ copies drift.
 - Copy the whole thread on `Ctrl+Shift+C`, from the "Copy the whole side thread" command palette
   action and from `copy thread` in the footer. The key is free in the supported host keymaps, and
   every path keeps the selection guard and the existing clipboard feedback.
+- Report the unsupported reasoning state from the toggle instead of changing the setting, because
+  a setting changed where it cannot take effect has no visible result, and a reader told that
+  reasoning is off while the answer still thinks has been told something false. The header cell
+  and the palette action are one toggle, and the state is global to the plugin.
+- Use the cheapest level the catalogue offers when it cannot turn reasoning fully off, because the
+  catalogue names the value the provider accepts and a level of `high` or above is the default the
+  reader already pays. The header and the toast name that level, and a model with no usable level
+  stays unsupported. `src/reasoning.ts` owns the choice, and `test/reasoning.test.ts` holds it.
 
 ## Agent skills
 

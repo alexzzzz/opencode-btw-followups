@@ -5,6 +5,8 @@ export type Turn = {
 
 export const MARKER = "The user is asking side questions about the conversation so far."
 
+export const isSideQuestion = (text: string) => text.startsWith(MARKER)
+
 const RULES = [
   MARKER,
   "Answer in markdown from what you already know.",

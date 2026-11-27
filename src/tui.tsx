@@ -7,6 +7,15 @@ import { createSyntaxStyle } from "./syntax.ts"
 import { panelHeights } from "./layout.ts"
 import { movedSinceLast, showsBadge, stateOf, type Sides } from "./state.ts"
 import { releasePlayback } from "./playback.ts"
+import {
+  modelEntry,
+  reasoningOptions,
+  reasoningStateLabel,
+  reasoningSupport,
+  type ReasoningModel,
+  type ReasoningState,
+} from "./reasoning.ts"
+import contract, { enabledOf } from "./contract.ts"
 import { Badge, ThreadDialog } from "./window.tsx"
 
 const ID = "btw-followups.tui"
@@ -18,13 +27,20 @@ type Resizable = {
 
 type ToastVariant = Notice["variant"]
 
+const errorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error))
+
 export default {
   id: ID,
   setup(context: Plugin.Context) {
     const [sides, setSides] = createSignal<Sides>(new Map())
     const [windowSession, setWindowSession] = createSignal<string | undefined>(undefined)
     const [rows, setRows] = createSignal(context.renderer.terminalHeight)
+    const [reasoningOn, setReasoningOn] = createSignal(true)
     const syntax = createSyntaxStyle(context.theme, (context.renderer as any).nativeScene)
+    const reasoningRpc = context.client.rpc(contract)
+    let storedReasoning: boolean | undefined
+    let reasoningWrite: { readonly enabled: boolean; readonly done: Promise<unknown> } | undefined
+    let flipToken = 0
 
     const view = (sessionID: string) => stateOf(sides(), sessionID)
 
@@ -46,6 +62,90 @@ export default {
           ...(duration === undefined ? {} : { duration }),
         })
       } catch {}
+    }
+
+    const writeReasoning = (enabled: boolean) => {
+      if (storedReasoning === enabled && reasoningWrite === undefined) return Promise.resolve()
+      if (reasoningWrite?.enabled === enabled) return reasoningWrite.done
+      const entry = { enabled, done: reasoningRpc.set({ enabled }) }
+      reasoningWrite = entry
+      void entry.done.then(
+        (answer) => {
+          if (reasoningWrite !== entry) return
+          storedReasoning = enabledOf(answer) ?? entry.enabled
+          reasoningWrite = undefined
+        },
+        () => {
+          if (reasoningWrite === entry) reasoningWrite = undefined
+        },
+      )
+      return entry.done
+    }
+
+    void reasoningRpc
+      .get({})
+      .then((answer) => {
+        const stored = enabledOf(answer)
+        if (stored === undefined || flipToken > 0) return
+        storedReasoning = stored
+        setReasoningOn(stored)
+      })
+      .catch(() => {})
+
+    const reasoningModel = (): ReasoningModel | undefined => {
+      const sessionID = windowSession()
+      const info = sessionID ? context.data.session.get(sessionID) : undefined
+      const own = info?.model
+      if (!own) return undefined
+      const ref = { providerID: own.providerID, modelID: own.id }
+      const find = (location?: { readonly directory: string }) =>
+        modelEntry(ref, context.data.location.model.list(location))
+      return find(info.location) ?? find() ?? ref
+    }
+
+    const reasoningLabel = (): ReasoningState => {
+      const model = reasoningModel()
+      return reasoningStateLabel(
+        model ? reasoningOptions(model, reasoningOn()) : { state: "unsupported" },
+      )
+    }
+
+    const flipReasoning = () => {
+      const model = reasoningModel()
+      if (!model || reasoningSupport(model) === "unsupported") {
+        tell(
+          "This model has no known way to turn reasoning off, so side answers keep thinking.",
+          "warning",
+          "/btw",
+          3000,
+        )
+        return
+      }
+      const decision = reasoningOptions(model, false)
+      const enabled = !reasoningOn()
+      const token = ++flipToken
+      setReasoningOn(enabled)
+      void writeReasoning(enabled)
+        .then((answer) => {
+          if (token !== flipToken) return
+          const stored = enabledOf(answer) ?? enabled
+          setReasoningOn(stored)
+          tell(
+            stored
+              ? "Side answers keep the session's reasoning."
+              : decision.state === "reduced"
+                ? `Reasoning in side answers is ${decision.level}.`
+                : "Reasoning in side answers is off.",
+            "info",
+            "/btw",
+            2000,
+          )
+        })
+        .catch((error) => {
+          if (token !== flipToken) return
+          setReasoningOn(!enabled)
+          tell(errorMessage(error), "error")
+        })
     }
 
     let lowering = false
@@ -93,9 +193,11 @@ export default {
     }
 
     const thread: SessionThread = createSessionThread({
-      generate(sessionID, prompt, signal) {
+      async generate(sessionID, prompt, signal, reasoning) {
+        await writeReasoning(reasoning).catch(() => {})
         return context.client.session.generate({ sessionID, prompt }, { signal })
       },
+      reasoning: () => reasoningOn(),
       onDeleted(handler) {
         return context.data.on("session.deleted", (event) => {
           if (windowSession() === event.data.sessionID) lowerWindow()
@@ -138,6 +240,8 @@ export default {
             state={() => view(sessionID)}
             syntax={syntax}
             rows={() => rows()}
+            reasoning={reasoningLabel}
+            onReasoning={flipReasoning}
             sessionMoved={() => movedSinceLast(view(sessionID).turns, spoken(sessionID))}
             remember={(draft, place) => thread.remember(sessionID, draft, place)}
             ask={(question) => thread.ask(sessionID, question)}
@@ -181,6 +285,21 @@ export default {
               run: (input) => {
                 try {
                   openSession(routeSession(), input?.trim())
+                } catch (error) {
+                  thread.crash(routeSession(), error)
+                }
+              },
+            },
+            {
+              id: "session.aside.reasoning",
+              title: "Toggle reasoning in side answers",
+              description:
+                "Send side questions with the least reasoning the selected model allows",
+              group: "Session",
+              palette: true,
+              run: () => {
+                try {
+                  flipReasoning()
                 } catch (error) {
                   thread.crash(routeSession(), error)
                 }

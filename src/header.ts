@@ -1,4 +1,5 @@
 import { quickMarker } from "./quick.ts"
+import type { ReasoningState } from "./reasoning.ts"
 
 export const HEADER_GAP = 2
 
@@ -8,18 +9,56 @@ export const HEADER_TITLE = "btw"
 
 export const CLOSE_LABEL = "esc close"
 
-export type HeaderCell = "count" | "marker" | "above" | "close" | "spacer"
+export type HeaderCell = "count" | "reasoning" | "marker" | "above" | "close" | "spacer"
 
 export type HeaderRow = {
   readonly cells: readonly HeaderCell[]
   readonly count: string
+  readonly reasoning: string
   readonly above: string
   readonly marker: string
 }
 
-const FULL: readonly HeaderCell[] = ["count", "spacer", "marker", "spacer", "above", "close"]
+const REASONING_LABELS = {
+  on: { full: "reasoning as is", short: "reason as is", least: "as is" },
+  off: { full: "reasoning off", short: "reason off", least: "off" },
+  unsupported: { full: "reasoning n/a", short: "reason n/a", least: "n/a" },
+} as const
 
-const WITHOUT_COUNT: readonly HeaderCell[] = ["spacer", "marker", "spacer", "above", "close"]
+const reasoningLabel = (
+  state: ReasoningState,
+  wording: keyof (typeof REASONING_LABELS)["on"],
+): string => {
+  if (typeof state !== "string") {
+    if (wording === "full") return `reasoning ${state.level}`
+    if (wording === "short") return `reason ${state.level}`
+    return state.level
+  }
+  return REASONING_LABELS[state][wording]
+}
+
+const FULL: readonly HeaderCell[] = [
+  "count",
+  "spacer",
+  "reasoning",
+  "spacer",
+  "marker",
+  "spacer",
+  "above",
+  "close",
+]
+
+const WITHOUT_COUNT: readonly HeaderCell[] = [
+  "spacer",
+  "reasoning",
+  "spacer",
+  "marker",
+  "spacer",
+  "above",
+  "close",
+]
+
+const WITHOUT_REASONING: readonly HeaderCell[] = ["spacer", "marker", "spacer", "above", "close"]
 
 const PLAIN: readonly HeaderCell[] = ["spacer", "marker", "spacer", "close"]
 
@@ -29,6 +68,7 @@ const TITLE_ONLY: readonly HeaderCell[] = []
 
 const textOf = (row: HeaderRow, cell: HeaderCell) => {
   if (cell === "count") return row.count
+  if (cell === "reasoning") return row.reasoning
   if (cell === "marker") return row.marker
   if (cell === "above") return row.above
   if (cell === "close") return CLOSE_LABEL
@@ -52,19 +92,47 @@ export const headerRow = (
   aboveRows: number,
   promptCount: number,
   open: boolean,
+  reasoning: ReasoningState = "on",
 ): HeaderRow => {
   const above = aboveRows > 0 ? `↑ ${aboveRows} above` : ""
   const full = quickMarker(promptCount, open)
   const short = quickMarker(promptCount, open, "short")
   const number = quickMarker(promptCount, open, "number")
   const rows = [
-    { cells: FULL, count, above, marker: full },
-    { cells: WITHOUT_COUNT, count, above, marker: full },
-    { cells: PLAIN, count, above, marker: full },
-    { cells: PLAIN, count, above, marker: short },
-    { cells: ONLY_MARKER, count, above, marker: short },
-    { cells: ONLY_MARKER, count, above, marker: number },
-    { cells: TITLE_ONLY, count, above, marker: "" },
+    {
+      cells: FULL,
+      count,
+      reasoning: reasoningLabel(reasoning, "full"),
+      above,
+      marker: full,
+    },
+    {
+      cells: WITHOUT_COUNT,
+      count,
+      reasoning: reasoningLabel(reasoning, "full"),
+      above,
+      marker: full,
+    },
+    {
+      cells: WITHOUT_COUNT,
+      count,
+      reasoning: reasoningLabel(reasoning, "short"),
+      above,
+      marker: full,
+    },
+    {
+      cells: WITHOUT_COUNT,
+      count,
+      reasoning: reasoningLabel(reasoning, "least"),
+      above,
+      marker: full,
+    },
+    { cells: WITHOUT_REASONING, count, reasoning: "", above, marker: full },
+    { cells: PLAIN, count, reasoning: "", above, marker: full },
+    { cells: PLAIN, count, reasoning: "", above, marker: short },
+    { cells: ONLY_MARKER, count, reasoning: "", above, marker: short },
+    { cells: ONLY_MARKER, count, reasoning: "", above, marker: number },
+    { cells: TITLE_ONLY, count, reasoning: "", above, marker: "" },
   ].map(compacted)
 
   const fits = rows.find((row) => widthOf(row) <= panelWidth)
