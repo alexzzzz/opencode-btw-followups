@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url"
 
 const root = fileURLToPath(new URL("..", import.meta.url))
 
-test("npm pack builds both public entrypoints from a source checkout", async () => {
+test("npm pack builds every public entrypoint from a source checkout", async () => {
   await rm(join(root, "dist"), { recursive: true, force: true })
   const result = spawnSync("npm", ["pack", "--dry-run", "--json"], {
     cwd: root,
@@ -20,4 +20,5 @@ test("npm pack builds both public entrypoints from a source checkout", async () 
   const files = new Set(packed[0]?.files.map((file) => file.path))
   expect(files.has("dist/index.js")).toBe(true)
   expect(files.has("dist/tui.js")).toBe(true)
+  expect(files.has("dist/contract.js")).toBe(true)
 }, 15000)

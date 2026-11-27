@@ -1,4 +1,4 @@
-// Builds the two entrypoints the package exports.
+// Builds the entrypoints the package exports.
 //
 // The terminal half is JSX, and a JSX file only loads when something compiles it.
 // OpenCode compiles it when it loads a plugin from a directory, but a package
@@ -13,7 +13,15 @@
 import { build } from "esbuild"
 import { solidPlugin } from "esbuild-plugin-solid"
 
-const external = ["@opencode/plugin", "@opencode/plugin/tui", "@opentui/core", "@opentui/solid", "solid-js", "solid-js/web"]
+const external = [
+  "@opencode/plugin",
+  "@opencode/plugin/rpc",
+  "@opencode/plugin/tui",
+  "@opentui/core",
+  "@opentui/solid",
+  "solid-js",
+  "solid-js/web",
+]
 
 const common = {
   bundle: true,
@@ -28,6 +36,12 @@ await build({
   ...common,
   entryPoints: ["src/index.ts"],
   outfile: "dist/index.js",
+})
+
+await build({
+  ...common,
+  entryPoints: ["src/contract.ts"],
+  outfile: "dist/contract.js",
 })
 
 // Three settings decide whether the compiled output can be loaded at all, and all
