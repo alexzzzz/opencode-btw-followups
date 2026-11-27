@@ -1,8 +1,10 @@
 export const SESSION_OPEN_BIND = "ctrl+up"
 
+export const THREAD_COPY_BIND = "ctrl+shift+c"
+
 export type Hint = readonly [key: string, rest: string]
 
-export type HintId = "list" | "jump" | "clear" | "retry" | "queues"
+export type HintId = "list" | "jump" | "clear" | "retry" | "copy" | "queues"
 
 export type InteractionMode = {
   readonly waiting: boolean
@@ -40,6 +42,7 @@ export type Intent =
   | "step_down"
   | "clear"
   | "retry"
+  | "copy_thread"
   | "recall_older"
   | "recall_newer"
   | "choose_up"
@@ -55,6 +58,7 @@ export type Binding = {
   readonly intent: Intent
   readonly enabled: () => boolean
   readonly effect: () => ListEffect | undefined
+  readonly palette?: true
 }
 
 type Key = {
@@ -65,6 +69,7 @@ type Key = {
   readonly enabled: (mode: InteractionMode) => boolean
   readonly effect?: (listed: boolean) => ListEffect
   readonly command?: boolean
+  readonly palette?: true
 }
 
 type HintDef = {
@@ -178,6 +183,19 @@ const GROUPS: readonly Group[] = [
   {
     keys: [
       {
+        id: "session.aside.copy",
+        bind: THREAD_COPY_BIND,
+        title: "Copy the whole side thread",
+        intent: "copy_thread",
+        enabled: (mode) => mode.canClear,
+        palette: true,
+      },
+    ],
+    hint: { id: "copy", rest: " copy thread", live: (mode) => mode.canClear },
+  },
+  {
+    keys: [
+      {
         id: "session.aside.recall_older",
         bind: "up",
         title: "Earlier question",
@@ -271,20 +289,22 @@ export const bindings = (mode: () => InteractionMode): readonly Binding[] =>
         intent: key.intent,
         enabled: () => key.enabled(mode()),
         effect: () => key.effect?.(mode().listed),
+        ...(key.palette === true ? { palette: true as const } : {}),
       })),
   )
 
 const TIERS: Record<FooterMode, readonly (readonly HintId[])[]> = {
   idle: [
+    ["retry", "list", "jump", "clear", "copy"],
     ["retry", "list", "jump", "clear"],
     ["retry", "list", "jump"],
     ["retry", "list"],
     ["retry", "jump"],
     ["jump"],
   ],
-  "idle-typed": [["jump"]],
-  waiting: [["list", "jump"], ["list"], ["jump"]],
-  "waiting-typed": [["queues", "jump"], ["queues"]],
+  "idle-typed": [["jump", "copy"], ["jump"]],
+  waiting: [["list", "jump", "copy"], ["list", "jump"], ["list"], ["jump"]],
+  "waiting-typed": [["queues", "jump", "copy"], ["queues", "jump"], ["queues"]],
 }
 
 const SEPARATOR = " · "

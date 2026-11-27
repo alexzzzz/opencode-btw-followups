@@ -1,7 +1,16 @@
 import { describe, expect, test } from "bun:test"
-import { panelHeights } from "../src/layout.ts"
+import { listTranscriptRoom, panelHeights } from "../src/layout.ts"
 
 const CHROME = 8
+
+describe("listTranscriptRoom", () => {
+  test("the list gets only the rows left after the chrome and the real composer", () => {
+    expect(listTranscriptRoom(17, 6)).toBe(3)
+    expect(listTranscriptRoom(17, 1)).toBe(8)
+    expect(listTranscriptRoom(100, 6)).toBe(60)
+    expect(listTranscriptRoom(13, 6)).toBe(0)
+  })
+})
 
 describe("panelHeights", () => {
   test("a closed list asks for the transcript's share and no minimum", () => {

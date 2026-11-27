@@ -48,6 +48,7 @@ From a session, you can use these shortcuts:
 2. Press `Ctrl+Up` again to open the quick prompts. Use `Up` and `Down` to choose one, then press `Enter`, or click a question.
 3. Press `Ctrl+Down` to close the quick prompts.
 4. Press `Ctrl+Down` again to close the window.
+5. Press `Ctrl+Shift+C` to copy the whole side thread. The command palette also has "Copy the whole side thread".
 
 The same shortcuts work in subagent sessions, so you can ask your subagents side questions, too.
 
@@ -57,7 +58,9 @@ The same shortcuts work in subagent sessions, so you can ask your subagents side
 
 Ask follow-up questions as you would in a normal chat. Each new question includes the earlier questions and answers, so the model has the context it needs.
 
-Use `PageUp`, `PageDown`, or the mouse wheel to read a long thread. Click one part of an answer to copy that section. To copy the whole thread, use `copy thread`. To clear the thread, press `Delete` twice while the input field is empty and no answer is active. With text in the field, `Delete` stays a forward delete. It also leaves the thread alone while the quick prompts are open.
+Use `PageUp`, `PageDown`, or the mouse wheel to read a long thread. Click a completed part of an answer to copy that section. A click during the answer's reveal copies nothing. To copy the whole thread, press `Ctrl+Shift+C`, choose "Copy the whole side thread" from the command palette, or use `copy thread`. Releasing a text selection over `copy thread` keeps the selection instead of replacing it. To clear the thread, press `Delete` twice while the input field is empty and no answer is active. With text in the field, `Delete` stays a forward delete. It also leaves the thread alone while the quick prompts are open.
+
+The quick prompt list wraps on a narrow terminal. On a short terminal, it uses the rows above the composer and scrolls to keep the chosen prompt visible.
 
 ![The btw badge in the status bar](docs/btw-badge.png)
 

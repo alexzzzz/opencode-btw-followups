@@ -226,6 +226,7 @@ export const pointerAt = (
   event: PointerEvent,
   surface: PointerSurface,
   selecting: SelectionGuard,
+  copyable: SelectionGuard = () => true,
 ): AnswerPointer => {
   if (selecting()) return emptyPointer
   const answer = answerOf(surface.answer)
@@ -238,7 +239,11 @@ export const pointerAt = (
   if (!inside) return emptyPointer
   const found = under(ownerOf(surface.markdown), event.y)
   if (!found) return emptyPointer
-  return { place: found.place, rail: railOf(found.place), copy: blockText(found.state.token) ?? "" }
+  return {
+    place: found.place,
+    rail: railOf(found.place),
+    copy: copyable() ? (blockText(found.state.token) ?? "") : "",
+  }
 }
 
 export const samePointer = (before: AnswerPointer, after: AnswerPointer) =>
