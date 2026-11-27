@@ -22,6 +22,7 @@ export type SideState = {
   readonly asked: readonly string[]
   readonly pending: readonly string[]
   readonly active: string | undefined
+  readonly paused: boolean
   readonly failure: Failure | undefined
   readonly draft: string
   readonly place: Reading | undefined
@@ -32,6 +33,7 @@ export const EMPTY: SideState = Object.freeze({
   asked: [],
   pending: [],
   active: undefined,
+  paused: false,
   failure: undefined,
   draft: "",
   place: undefined,
@@ -61,10 +63,11 @@ export const showsBadge = (
   sides: Sides,
   sessionID: string | undefined,
   windowSession: string | undefined,
-): boolean =>
-  sessionID !== undefined &&
-  stateOf(sides, sessionID).active !== undefined &&
-  windowSession !== sessionID
+): boolean => {
+  if (sessionID === undefined || windowSession === sessionID) return false
+  const state = stateOf(sides, sessionID)
+  return state.active !== undefined || state.pending.length > 0 || state.failure !== undefined
+}
 
 export const movedSinceLast = (turns: readonly SideTurn[], spoken: number): boolean => {
   const last = turns.at(-1)

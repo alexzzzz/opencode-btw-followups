@@ -144,6 +144,22 @@ describe("one request in flight, in order", () => {
     expect(h.raised()).toEqual([])
   })
 
+  test("a successful queue keeps draining while the window is closed", async () => {
+    const h = harness()
+    h.setWindow(a)
+    h.thread.ask(a, "first")
+    h.thread.ask(a, "second")
+    h.setWindow(undefined)
+
+    await h.answer("answer one")
+    expect(h.calls()).toHaveLength(2)
+    await h.answer("answer two")
+
+    expect(h.view(a).turns.map((item) => item.turn.question)).toEqual(["first", "second"])
+    expect(h.view(a).pending).toEqual([])
+    expect(h.view(a).paused).toBe(false)
+  })
+
   test("an answer in the reader's session raises the window for it", async () => {
     const h = harness()
     h.setCurrent(a)
@@ -174,7 +190,7 @@ describe("a failed request", () => {
     expect(h.notices()[0]?.message).toContain("why did step two fail")
   })
 
-  test("a thrown answer is reported with the question and stops the queue", async () => {
+  test("a thrown answer preserves the question and stops the queue", async () => {
     const h = harness()
     h.thread.ask(a, "first")
     h.thread.ask(a, "second")
@@ -182,31 +198,172 @@ describe("a failed request", () => {
 
     expect(h.view(a).failure?.message).toBe("model went away")
     expect(h.view(a).failure?.question).toBe("first")
+    expect(h.view(a).pending).toEqual(["first", "second"])
+    expect(h.view(a).active).toBeUndefined()
     expect(h.calls()).toHaveLength(1)
-    expect(h.view(a).pending).toEqual([])
+    expect(h.notices()).toHaveLength(1)
+    expect(h.notices()[0]?.message).toContain("first")
+  })
+
+  test("an empty answer preserves the failed question and the pending tail", async () => {
+    const h = harness()
+    h.thread.ask(a, "first")
+    h.thread.ask(a, "second")
+    await h.answer("")
+
+    expect(h.view(a).failure?.question).toBe("first")
+    expect(h.view(a).pending).toEqual(["first", "second"])
+    expect(h.view(a).paused).toBe(true)
+    expect(h.view(a).active).toBeUndefined()
+    expect(h.calls()).toHaveLength(1)
+  })
+
+  test("opening a failed queue neither dismisses the failure nor resumes it", async () => {
+    const h = harness()
+    h.thread.ask(a, "first")
+    h.thread.ask(a, "second")
+    await h.reject(new Error("model went away"))
+    const failed = h.view(a).failure
+
+    h.thread.send(a)
+
+    expect(h.calls()).toHaveLength(1)
+    expect(h.view(a).failure).toEqual(failed)
+    expect(h.view(a).pending).toEqual(["first", "second"])
+    expect(h.view(a).paused).toBe(true)
+  })
+
+  test("a new question acknowledges the failure and resumes the preserved queue", async () => {
+    const h = harness()
+    h.thread.ask(a, "first")
+    h.thread.ask(a, "second")
+    await h.reject(new Error("model went away"))
+
+    h.thread.ask(a, "third")
+
+    expect(h.calls()).toHaveLength(2)
+    expect(h.view(a).failure).toBeUndefined()
+    expect(h.view(a).paused).toBe(false)
+    expect(h.view(a).active).toBe("first\nsecond\nthird")
+    expect(h.calls()[1]?.prompt).toContain("1. first")
+    expect(h.calls()[1]?.prompt).toContain("2. second")
+    expect(h.calls()[1]?.prompt).toContain("3. third")
+  })
+
+  test("an explicit retry resends the failed question ahead of the pending tail", async () => {
+    const h = harness()
+    h.thread.ask(a, "first")
+    h.thread.ask(a, "second")
+    await h.answer("")
+
+    h.thread.retry(a)
+
+    expect(h.calls()).toHaveLength(2)
+    expect(h.view(a).failure).toBeUndefined()
+    expect(h.view(a).paused).toBe(false)
+    expect(h.view(a).active).toBe("first\nsecond")
+    expect(h.calls()[1]?.prompt).toContain("1. first")
+    expect(h.calls()[1]?.prompt).toContain("2. second")
+  })
+
+  test("a retry keeps the questions of a failed batch separate", async () => {
+    const h = harness()
+    h.thread.ask(a, "first")
+    h.thread.ask(a, "second")
+    h.thread.ask(a, "third")
+    await h.answer("answer one")
+    await h.reject(new Error("model went away"))
+
+    expect(h.view(a).pending).toEqual(["second", "third"])
+    h.thread.retry(a)
+
+    expect(h.calls()).toHaveLength(3)
+    expect(h.calls()[2]?.prompt).toContain("New questions, 2 of them asked together")
+    expect(h.calls()[2]?.prompt).toContain("1. second")
+    expect(h.calls()[2]?.prompt).toContain("2. third")
+  })
+
+  test("a thrown answer with the window open preserves the tail without a toast", async () => {
+    const h = harness()
+    h.setWindow(a)
+    h.thread.ask(a, "first")
+    h.thread.ask(a, "second")
+    await h.reject(new Error("model went away"))
+
+    expect(h.view(a).pending).toEqual(["first", "second"])
+    expect(h.view(a).paused).toBe(true)
+    expect(h.calls()).toHaveLength(1)
+    expect(h.notices()).toEqual([])
+  })
+
+  test("a failed session does not block another session's queue", async () => {
+    const h = harness()
+    h.thread.ask(a, "first")
+    h.thread.ask(a, "second")
+    await h.reject(new Error("model went away"))
+
+    h.thread.ask(b, "other session")
+    expect(h.calls()).toHaveLength(2)
+    await h.answer("other answer")
+
+    expect(h.view(a).pending).toEqual(["first", "second"])
+    expect(h.view(a).paused).toBe(true)
+    expect(h.view(b).turns.map((item) => item.turn.question)).toEqual(["other session"])
   })
 
   test("a failure while the window is for that session stays off the toast", async () => {
     const h = harness()
     h.setWindow(a)
     h.thread.ask(a, "quiet")
+    h.thread.ask(a, "still waiting")
     await h.answer("")
 
     expect(h.view(a).failure).toBeDefined()
+    expect(h.view(a).pending).toEqual(["quiet", "still waiting"])
+    expect(h.view(a).paused).toBe(true)
+    expect(h.calls()).toHaveLength(1)
     expect(h.notices()).toEqual([])
   })
 
-  test("a failure in another session still reaches the toast", async () => {
+  test("a failure in another session still reaches the toast with the queue preserved", async () => {
     const h = harness()
     h.setWindow(b)
     h.thread.ask(a, "loud")
+    h.thread.ask(a, "still waiting")
     await h.answer("")
 
     expect(h.notices()).toHaveLength(1)
+    expect(h.view(a).pending).toEqual(["loud", "still waiting"])
+    expect(h.view(a).paused).toBe(true)
+    expect(h.calls()).toHaveLength(1)
   })
 })
 
 describe("clearing the thread", () => {
+  test("a clear keeps a paused queue waiting for a new question", async () => {
+    const h = harness()
+    h.thread.remember(a, "half a thought", undefined)
+    h.thread.ask(a, "first")
+    h.thread.ask(a, "second")
+    await h.reject(new Error("model went away"))
+
+    h.thread.clear(a)
+    h.thread.send(a)
+
+    const cleared = h.view(a)
+    expect(cleared.turns).toEqual([])
+    expect(cleared.failure).toBeUndefined()
+    expect(cleared.pending).toEqual(["first", "second"])
+    expect(cleared.paused).toBe(true)
+    expect(cleared.draft).toBe("half a thought")
+    expect(cleared.asked).toEqual(["first", "second"])
+    expect(h.calls()).toHaveLength(1)
+
+    h.thread.ask(a, "third")
+    expect(h.calls()).toHaveLength(2)
+    expect(h.view(a).active).toBe("first\nsecond\nthird")
+  })
+
   test("a clear keeps the draft, the queue and the request in flight", async () => {
     const h = harness()
     h.thread.remember(a, "half a thought", undefined)
@@ -220,6 +377,7 @@ describe("clearing the thread", () => {
     expect(cleared.draft).toBe("half a thought")
     expect(cleared.pending).toEqual(["second"])
     expect(cleared.active).toBe("first")
+    expect(cleared.asked).toEqual(["first", "second"])
 
     await h.answer("answer one")
     expect(h.view(a).turns.map((item) => item.turn.question)).toEqual(["first"])
@@ -239,6 +397,34 @@ describe("a deleted session", () => {
     await h.answer("too late")
     expect(h.published().has(a)).toBe(false)
     expect(h.raised()).toEqual([])
+  })
+
+  test("deletion forgets a paused queue and its failure", async () => {
+    const h = harness()
+    h.thread.ask(a, "first")
+    h.thread.ask(a, "second")
+    await h.reject(new Error("model went away"))
+
+    h.deleteSession(a)
+
+    expect(h.published().has(a)).toBe(false)
+    expect(h.calls()).toHaveLength(1)
+  })
+
+  test("dispose does not restart pending work after aborting the request", async () => {
+    const h = harness()
+    h.thread.ask(a, "first")
+    h.thread.ask(a, "second")
+    const call = h.calls()[0]
+
+    h.thread.dispose()
+    await h.answer("too late")
+
+    expect(call?.signal.aborted).toBe(true)
+    expect(h.calls()).toHaveLength(1)
+    expect(h.view(a).active).toBeUndefined()
+    expect(h.view(a).pending).toEqual(["second"])
+    expect(h.view(a).failure).toBeUndefined()
   })
 
   test("dispose aborts what is in flight and stops watching for deletes", () => {

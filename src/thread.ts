@@ -45,6 +45,7 @@ export type ThreadAdapters = {
 
 export type SessionThread = {
   ask(sessionID: string, question: string): void
+  retry(sessionID: string): void
   send(sessionID: string): void
   failed(
     sessionID: string | undefined,
@@ -55,7 +56,6 @@ export type SessionThread = {
   clear(sessionID: string): void
   crash(sessionID: string | undefined, error: unknown): void
   view(sessionID: string): SideState
-  dismiss(sessionID: string): void
   remember(sessionID: string, draft: string, place: SideState["place"]): void
   dispose(): void
 }
@@ -67,6 +67,7 @@ const errorMessage = (error: unknown) =>
 
 export const createSessionThread = (adapters: ThreadAdapters): SessionThread => {
   let sides: Sides = new Map()
+  let disposed = false
   const draining = new Set<string>()
   const inFlight = new Map<string, AbortController>()
 
@@ -83,9 +84,19 @@ export const createSessionThread = (adapters: ThreadAdapters): SessionThread => 
     message: string,
     title?: string | undefined,
     question?: string | undefined,
+    questions?: readonly string[],
   ) => {
     if (sessionID) {
-      edit(sessionID, { failure: { message, title, question } })
+      const state = view(sessionID)
+      edit(sessionID, {
+        failure: { message, title, question },
+        ...(question === undefined
+          ? {}
+          : {
+              paused: true,
+              pending: [...(questions ?? [question]), ...state.pending],
+            }),
+      })
       if (adapters.windowSession() === sessionID) return
     }
     adapters.notify({
@@ -124,7 +135,7 @@ export const createSessionThread = (adapters: ThreadAdapters): SessionThread => 
       const answer = response.text.trim()
       if (inFlight.get(sessionID) !== call) return "dropped"
       if (!answer) {
-        failed(sessionID, EMPTY_ANSWER, "No answer came back", question)
+        failed(sessionID, EMPTY_ANSWER, "No answer came back", question, pending)
         return "empty"
       }
       commit(addTurn(sides, sessionID, { question, answer }, adapters.spoken(sessionID)))
@@ -133,7 +144,7 @@ export const createSessionThread = (adapters: ThreadAdapters): SessionThread => 
     } catch (error) {
       if (call.signal.aborted) return "dropped"
       if (!sides.has(sessionID)) return "dropped"
-      failed(sessionID, errorMessage(error), undefined, question)
+      failed(sessionID, errorMessage(error), undefined, question, pending)
       return "failed"
     } finally {
       if (inFlight.get(sessionID) === call) inFlight.delete(sessionID)
@@ -142,21 +153,22 @@ export const createSessionThread = (adapters: ThreadAdapters): SessionThread => 
   }
 
   const send = (sessionID: string) => {
-    if (draining.has(sessionID)) return
+    const state = view(sessionID)
+    if (disposed || draining.has(sessionID) || state.paused || state.active !== undefined) return
     draining.add(sessionID)
     void (async () => {
       try {
         while (view(sessionID).pending.length > 0) {
           const outcome = await sendNext(sessionID)
           if (outcome === "answered") continue
-          if (outcome === "failed") edit(sessionID, { pending: [] })
           break
         }
       } catch (error) {
         unexpected(sessionID, error)
       } finally {
         draining.delete(sessionID)
-        if (view(sessionID).pending.length > 0 && adapters.windowSession() === sessionID) {
+        const state = view(sessionID)
+        if (!state.paused && state.active === undefined && state.pending.length > 0) {
           send(sessionID)
         }
       }
@@ -171,9 +183,16 @@ export const createSessionThread = (adapters: ThreadAdapters): SessionThread => 
       if (!asked) return
       edit(sessionID, {
         failure: undefined,
+        paused: false,
         pending: [...view(sessionID).pending, asked],
         asked: remembered(view(sessionID).asked, asked),
       })
+      send(sessionID)
+    },
+    retry(sessionID) {
+      const state = view(sessionID)
+      if (!state.paused || !state.failure?.question) return
+      edit(sessionID, { failure: undefined, paused: false })
       send(sessionID)
     },
     send,
@@ -183,13 +202,11 @@ export const createSessionThread = (adapters: ThreadAdapters): SessionThread => 
     },
     crash: unexpected,
     view,
-    dismiss(sessionID) {
-      edit(sessionID, { failure: undefined })
-    },
     remember(sessionID, draft, place) {
       edit(sessionID, { draft, place })
     },
     dispose() {
+      disposed = true
       for (const call of inFlight.values()) call.abort()
       inFlight.clear()
       stopDeletes()

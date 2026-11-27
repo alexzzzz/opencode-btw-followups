@@ -2,13 +2,14 @@ export const SESSION_OPEN_BIND = "ctrl+up"
 
 export type Hint = readonly [key: string, rest: string]
 
-export type HintId = "list" | "jump" | "clear" | "queues"
+export type HintId = "list" | "jump" | "clear" | "retry" | "queues"
 
 export type InteractionMode = {
   readonly waiting: boolean
   readonly typed: boolean
   readonly listed: boolean
   readonly canClear: boolean
+  readonly canRetry: boolean
   readonly canJump: boolean
 }
 
@@ -38,6 +39,7 @@ export type Intent =
   | "list"
   | "step_down"
   | "clear"
+  | "retry"
   | "recall_older"
   | "recall_newer"
   | "choose_up"
@@ -148,10 +150,30 @@ const GROUPS: readonly Group[] = [
         bind: "delete",
         title: "Clear the side thread",
         intent: "clear",
-        enabled: (mode) => !mode.listed && !mode.typed,
+        enabled: (mode) => !mode.waiting && !mode.listed && !mode.typed,
       },
     ],
-    hint: { id: "clear", rest: " clear thread", live: (mode) => mode.canClear },
+    hint: {
+      id: "clear",
+      rest: " clear thread",
+      live: (mode) => mode.canClear && !mode.waiting && !mode.listed && !mode.typed,
+    },
+  },
+  {
+    keys: [
+      {
+        id: "session.aside.retry",
+        bind: "enter",
+        title: "Retry the failed question",
+        intent: "retry",
+        enabled: (mode) => mode.canRetry && !mode.waiting && !mode.listed && !mode.typed,
+      },
+    ],
+    hint: {
+      id: "retry",
+      rest: " retry",
+      live: (mode) => mode.canRetry && !mode.waiting && !mode.listed && !mode.typed,
+    },
   },
   {
     keys: [
@@ -253,7 +275,13 @@ export const bindings = (mode: () => InteractionMode): readonly Binding[] =>
   )
 
 const TIERS: Record<FooterMode, readonly (readonly HintId[])[]> = {
-  idle: [["list", "jump", "clear"], ["list", "jump"], ["list"], ["jump"]],
+  idle: [
+    ["retry", "list", "jump", "clear"],
+    ["retry", "list", "jump"],
+    ["retry", "list"],
+    ["retry", "jump"],
+    ["jump"],
+  ],
   "idle-typed": [["jump"]],
   waiting: [["list", "jump"], ["list"], ["jump"]],
   "waiting-typed": [["queues", "jump"], ["queues"]],

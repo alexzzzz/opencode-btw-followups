@@ -27,6 +27,7 @@ describe("stateOf", () => {
       asked: [],
       pending: [],
       active: undefined,
+      paused: false,
       failure: undefined,
       draft: "",
       place: undefined,
@@ -341,13 +342,31 @@ describe("showsBadge", () => {
     expect(showsBadge(new Map(), a, undefined)).toBe(false)
   })
 
-  test("a queued question alone is no badge", () => {
+  test("a queued question is a badge", () => {
     const sides = change(new Map(), a, { pending: ["one"] })
-    expect(showsBadge(sides, a, undefined)).toBe(false)
+    expect(showsBadge(sides, a, undefined)).toBe(true)
+  })
+
+  test("a failure with nothing left in flight is a badge", () => {
+    const sides = change(new Map(), a, { failure: { message: "no answer" } })
+    expect(showsBadge(sides, a, undefined)).toBe(true)
+  })
+
+  test("a paused queue stays visible while the window is down", () => {
+    const sides = change(new Map(), a, {
+      pending: ["first", "second"],
+      paused: true,
+      failure: { message: "no answer", question: "first" },
+    })
+    expect(showsBadge(sides, a, undefined)).toBe(true)
   })
 
   test("the window already up for that session is no badge", () => {
-    const sides = change(new Map(), a, { active: "one" })
+    const sides = change(new Map(), a, {
+      active: "one",
+      paused: true,
+      failure: { message: "no answer" },
+    })
     expect(showsBadge(sides, a, a)).toBe(false)
   })
 
