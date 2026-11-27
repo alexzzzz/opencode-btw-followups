@@ -165,6 +165,72 @@ describe("reasoningOptions", () => {
   })
 })
 
+describe("catalogue variants", () => {
+  const gateway = (
+    modelID: string,
+    variants: NonNullable<ReasoningModel["variants"]>,
+  ): ReasoningModel => ({
+    providerID: "opencode",
+    modelID,
+    package: "@opencode/ai/providers/openai-compatible",
+    variants,
+  })
+
+  test("a catalogue off variant is the option the request carries", () => {
+    const model = gateway("hy4-flash-free", [
+      { settings: { reasoningEffort: "none" } },
+      { settings: { reasoningEffort: "high" } },
+    ])
+    expect(reasoningOptions(model, false)).toEqual({
+      state: "applied",
+      options: { reasoningEffort: "none" },
+    })
+  })
+
+  test("a catalogue thinking switch is the option the request carries", () => {
+    const model = gateway("qwen3.8-flash", [
+      { settings: { thinking: { type: "disabled" } } },
+      { settings: { thinking: { type: "adaptive" }, effort: "high" } },
+    ])
+    expect(reasoningOptions(model, false)).toEqual({
+      state: "applied",
+      options: { thinking: { type: "disabled" } },
+    })
+  })
+
+  test("a catalogue zero budget is the option the request carries", () => {
+    const model = gateway("gemini-4", [
+      { settings: { thinkingConfig: { thinkingBudget: 0, includeThoughts: false } } },
+    ])
+    expect(reasoningOptions(model, false)).toEqual({
+      state: "applied",
+      options: { thinkingConfig: { thinkingBudget: 0, includeThoughts: false } },
+    })
+  })
+
+  test("a model whose catalogue offers no off variant is unsupported", () => {
+    const model = gateway("deepseek-v4.1-flash-free", [
+      { settings: { reasoningEffort: "low" } },
+      { settings: { reasoningEffort: "high" } },
+      { settings: { reasoningEffort: "max" } },
+    ])
+    expect(reasoningOptions(model, false)).toEqual({ state: "unsupported" })
+    expect(reasoningSupport(model)).toBe("unsupported")
+  })
+
+  test("a model that requires its reasoning field ignores its variants", () => {
+    const model = gateway("always-thinks", [{ settings: { reasoningEffort: "none" } }])
+    expect(reasoningOptions({ ...model, compatibility: { requireReasoning: true } }, false)).toEqual({
+      state: "unsupported",
+    })
+  })
+
+  test("reasoning left on sends no override even with an off variant", () => {
+    const model = gateway("hy4-flash-free", [{ settings: { reasoningEffort: "none" } }])
+    expect(reasoningOptions(model, true)).toEqual({ state: "unchanged" })
+  })
+})
+
 describe("reasoningSupport", () => {
   test("a provider with a known control is supported", () => {
     expect(reasoningSupport(model())).toBe("supported")

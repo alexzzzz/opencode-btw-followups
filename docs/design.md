@@ -720,7 +720,17 @@ byte for byte what the model saw before the toggle, and a transient generation c
 plugin, which carries no marker, is left alone. The hook returns at once while the setting is
 on, so a reader who never touches it sends exactly the request the plugin sent before.
 
-The option table is best effort and protocol based. Each row is the option the protocol schema
+The model's own catalogue entry decides first. A model the host lists carries variants, and a
+variant whose settings turn reasoning off is the host's own statement of how to do it for that
+model: `reasoningEffort: "none"`, `thinking: { type: "disabled" }`, `thinkingConfig` with a zero
+budget, `reasoning: { enabled: false }` or `enableThinking: false`. When such a variant exists the
+side request carries that variant's settings, because a gateway model such as `hy4-flash-free` has
+an off variant while its protocol name alone would leave the table guessing. A model whose
+variants all reason, such as `deepseek-v4.1-flash-free` with `low`, `high` and `max` and no
+`none`, is unsupported whatever its provider. The table below answers only a model whose
+catalogue lists no variants.
+
+The fallback table is best effort and protocol based. Each row is the option the protocol schema
 in `@opencode/ai` declares, not a guess from the provider's name, and `test/reasoning.test.ts`
 holds the rows:
 

@@ -3,6 +3,7 @@ export type ReasoningModel = {
   readonly modelID: string
   readonly package?: string
   readonly compatibility?: Record<string, unknown>
+  readonly variants?: readonly { readonly settings?: Record<string, unknown> }[]
 }
 
 export type ModelRef = {
@@ -111,9 +112,25 @@ export const modelEntry = (
 ): ReasoningModel | undefined =>
   ref && known?.find((item) => item.providerID === ref.providerID && item.modelID === ref.modelID)
 
+const disablesReasoning = (settings: Record<string, unknown> | undefined): boolean => {
+  if (!settings) return false
+  const effort = settings.reasoningEffort
+  if (typeof effort === "string" && effort.toLowerCase() === "none") return true
+  if ((settings.thinking as { readonly type?: unknown } | undefined)?.type === "disabled") return true
+  if ((settings.reasoning as { readonly enabled?: unknown } | undefined)?.enabled === false) return true
+  if ((settings.thinkingConfig as { readonly thinkingBudget?: unknown } | undefined)?.thinkingBudget === 0)
+    return true
+  return settings.enableThinking === false
+}
+
+const offVariant = (model: ReasoningModel): Record<string, unknown> | undefined =>
+  model.variants?.find((variant) => disablesReasoning(variant.settings))?.settings
+
 export const reasoningOptions = (model: ReasoningModel, enabled: boolean): ReasoningDecision => {
   if (enabled) return { state: "unchanged" }
   if (model.compatibility?.requireReasoning === true) return { state: "unsupported" }
+  const variant = offVariant(model)
+  if (variant) return { state: "applied", options: { ...variant } }
   return decisionFor(familyOf(model), model)
 }
 
