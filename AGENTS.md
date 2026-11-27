@@ -10,6 +10,10 @@ builds the package the npm release ships, in that order. `bun test` runs the tes
 TUI half has no behavioural test, so a change to the dialog, the command or the queue also
 needs one pass by hand in a terminal.
 
+Run `bun run release:smoke` before a release. It starts with `bun run check`, then packs a clean
+source archive, installs it against the minimum and current host sets, imports both entrypoints,
+and checks deployment against the real host binaries. `npm publish` runs the same gate.
+
 The running TUI loads this plugin from `<config>/plugins/btw-followups` rather than from the
 tree, so `bun run deploy` copies the sources there and `bun run deploy:check` says whether the
 copy is behind. A change the copy does not hold is a change the window never shows.
@@ -30,6 +34,10 @@ copy is behind. A change the copy does not hold is a change the window never sho
   `src/header.ts`, `src/interaction.ts`, `src/playback.ts` and `src/pointer.ts` are pure, and `test/`
   covers them.
 - `README.md` is what a user reads.
+- `scripts/config-dir.mjs` resolves the config directory reported by `opencode debug paths config`.
+  Deployment and the documented examples use that answer.
+- `scripts/release-smoke.mjs` holds the tested host sets and the clean pack, install, import, and
+  deployment check.
 - `docs/design.md` holds the measurement behind every rule below, plus the install
   evidence and the packaging rules. Read it before you change the dialog, the prompt, the
   install notes or the build.

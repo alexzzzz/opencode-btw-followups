@@ -614,6 +614,24 @@ A toast the host refuses is swallowed. Every path that shows one has either writ
 into the session's state or has nothing else to say it with, and a throw from a click handler
 would replace the message the reader needed with one they cannot act on.
 
+## Host compatibility
+
+`scripts/release-smoke.mjs` holds the tested host sets. The minimum set is OpenCode and
+`@opencode/plugin` 2.0.19 with OpenTUI 0.5.12 and Solid 1.9.12. The current set is OpenCode and
+`@opencode/plugin` 2.4.2 with OpenTUI 0.9.9 and Solid 1.9.20. The package accepts OpenCode 2.x,
+OpenTUI `>=0.5.12 <0.10.0`, and Solid `>=1.9.12 <2.0.0`.
+
+The release smoke installs the packed plugin into an empty project with each set, without peer
+dependency overrides. It imports both built entry points in a plain Bun process. The upper bounds
+keep untested OpenTUI 0.10 and Solid 2 changes out of the declared range. GitHub Actions runs the
+same check on Windows and Linux.
+
+OpenTUI 0.9 replaces `renderNode` and `internalBlockMode` with `renderBlock` and parsed
+`MarkdownBlock` values. The dialog checks the installed `MarkdownRenderable` prototype, translates
+current blocks through `answerToken`, and exposes the same block-state adapter the pointer module
+reads. The built package therefore keeps the older renderer path for the minimum host and the
+current renderer path for new hosts.
+
 ## Install notes
 
 The evidence behind the checkout instructions in `README.md`.
@@ -621,6 +639,11 @@ The evidence behind the checkout instructions in `README.md`.
 - An entry counts as a local path when it starts with `file://` or `.`, or when it is
   absolute, which on Windows includes `C:/repos/thing`. Everything else is an npm package
   name.
+- `scripts/config-dir.mjs` asks `opencode debug paths config` for the canonical directory.
+  `deploy`, `deploy:check`, and the README examples use that answer, so `XDG_CONFIG_HOME` and
+  `OPENCODE_CONFIG_DIR` select the same files for the host and the developer. The home-directory
+  layout is a fallback only when the `opencode` executable is missing. A host command that exists
+  and fails stops deployment instead of silently choosing another directory.
 - A directory target must hold a `package.json` or an index file, or it is skipped with
   `Plugin directory ... is missing package.json or index file`.
 - The loader takes the terminal half from `exports["./tui"]`, and the server half from
@@ -631,9 +654,12 @@ The evidence behind the checkout instructions in `README.md`.
   them have to be copied again on every change:
 
   ```sh
-  mkdir -p ~/.config/opencode/plugins/btw-followups
-  cp src/*.ts src/*.tsx ~/.config/opencode/plugins/btw-followups/
+  config="$(opencode debug paths config)"
+  mkdir -p "$config/plugins/btw-followups"
+  cp src/*.ts src/*.tsx "$config/plugins/btw-followups/"
   ```
+
+  On Windows, `bun run deploy` runs the same copy through the shared resolver.
 - The directory form runs the unbuilt sources, and the host picks the reload up from the file
   change. A TUI left open across a reload keeps the old dialog on the host's stack.
 - A plugin installed from a directory shows as `local` in `opencode plugin list` and in the
@@ -650,6 +676,18 @@ The evidence behind the checkout instructions in `README.md`.
 sources the documentation shows. The documented form relies on the host compiling the JSX,
 which it only does for a plugin it loads from a directory. Installed from npm there is no
 compiler, and the terminal half fails to load with a missing `react/jsx-dev-runtime`.
+
+`prepack` runs the build for both `npm pack` and `npm publish`. A source checkout with no `dist/`
+therefore cannot produce a package without the two entry points. `prepublishOnly` runs the full
+release smoke, so a failed package install, import, or deployment check stops publication.
+
+`bun run release:smoke` starts with `bun run check`. It copies only Git source files to a temporary
+directory, verifies that `dist/` is absent, installs the locked development dependencies, and packs
+there. It checks the tarball file list, installs the tarball into empty minimum and current host
+projects, and imports both public entry points with plain Bun. It also runs each host's
+`opencode debug paths config` and exercises `deploy` and `deploy:check` in temporary XDG,
+home-default, and host-reported config directories. Every child process must exit successfully.
+The workflow in `.github/workflows/release.yml` runs the command on Windows and Linux.
 
 Discovery by filename is a separate mechanism. `<config>/plugins/<dir>/index.ts` and
 `tui.tsx` are read directly, so the directory form runs the unbuilt sources and is unaffected
@@ -676,8 +714,11 @@ The pure modules are covered by tests, and they are the primary seam: the prompt
 travels in, the height arithmetic that keeps the panel on the terminal, the store that keeps one
 thread per session, the footer's fitting arithmetic and the pacing of the reveal.
 
-The packaging is verified by packing the tarball, installing it into an empty project, and
-importing each entrypoint.
+The packaging is verified by `bun run release:smoke`. The command packs a clean source archive,
+installs the tarball into empty minimum and current host projects, and imports each entrypoint in a
+plain Bun process. It also verifies dependency resolution and canonical config deployment against
+the real host binaries. `test/package.test.ts` keeps the standalone `npm pack` build gate small, and
+`test/deploy.test.ts` holds the host-reported target and XDG behavior.
 
 The TUI half is verified by hand: rendering, scrolling, the composer, the spinner, the
 command, the click on the badge that opens the window, the row of quick questions, the list

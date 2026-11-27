@@ -12,6 +12,58 @@ export type AnswerToken = {
   readonly rows?: readonly (readonly AnswerToken[])[]
 }
 
+export type AnswerBlock = {
+  readonly kind: string
+  readonly raw: string
+  readonly text: string
+  readonly children: readonly AnswerBlock[]
+  readonly ordered?: boolean
+  readonly start?: number
+}
+
+export const answerToken = (block: AnswerBlock): AnswerToken => {
+  const children = block.children.map(answerToken)
+  switch (block.kind) {
+    case "list":
+      return {
+        type: "list",
+        raw: block.raw,
+        text: block.text,
+        items: children,
+        ordered: block.ordered ?? false,
+        ...(block.start === undefined ? {} : { start: block.start }),
+      }
+    case "item":
+      return { type: "list_item", raw: block.raw, text: block.text, tokens: children }
+    case "table": {
+      const rows = block.children.map((row) =>
+        row.children.map((cell) => ({
+          type: "text",
+          raw: cell.raw,
+          text: cell.text,
+          tokens: cell.children.map(answerToken),
+        })),
+      )
+      const [header, ...body] = rows
+      return {
+        type: "table",
+        raw: block.raw,
+        text: block.text,
+        rows: body,
+        ...(header === undefined ? {} : { header }),
+      }
+    }
+    case "cell":
+      return { type: "text", raw: block.raw, text: block.text, tokens: children }
+    case "rule":
+      return { type: "hr", raw: block.raw }
+    case "quote":
+      return { type: "blockquote", raw: block.raw, text: block.text, tokens: children }
+    default:
+      return { type: block.kind, raw: block.raw, text: block.text, tokens: children }
+  }
+}
+
 export type PointerEvent = {
   readonly x: number
   readonly y: number
